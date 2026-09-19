@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "333209496476",
+    "firebase_url": "https://womansafety-215e2-default-rtdb.firebaseio.com",
+    "project_id": "womansafety-215e2",
+    "storage_bucket": "womansafety-215e2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:333209496476:android:6d2fca5c4eacfe05e87659",
+        "android_client_info": {
+          "package_name": "com.safelife.safelife"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB9U3Z7yVQkv0euyHCN57G83gR3gUICo4I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
