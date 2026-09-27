@@ -346,42 +346,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ),
-          const Divider(height: 1),
 
-          // Appearance Setting Tile
-          ListTile(
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: isDark
-                    ? Colors.amber.withAlpha(20)
-                    : Colors.blueGrey.withAlpha(20),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-                color: isDark ? Colors.amber : Colors.blueGrey,
-                size: 20,
-              ),
-            ),
-            title: Text(
-              l10n?.appearanceSetting ?? 'Theme Appearance',
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-            ),
-            subtitle: Text(
-              isDark ? 'Dark Theme (Night mode)' : 'Light Theme (Day mode)',
-              style: TextStyle(
-                fontSize: 12,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            trailing: Switch(
-              value: isDark,
-              onChanged: (_) => widget.onToggleTheme(),
-            ),
-          ),
         ],
       ),
     );

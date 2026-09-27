@@ -60,7 +60,7 @@ class SafeLifeApp extends StatefulWidget {
 }
 
 class _SafeLifeAppState extends State<SafeLifeApp> {
-  ThemeMode _themeMode = ThemeMode.system;
+  ThemeMode _themeMode = ThemeMode.light;
   late Locale _locale;
 
   late final SafeLifeAuthProvider _authProvider;
@@ -110,13 +110,7 @@ class _SafeLifeAppState extends State<SafeLifeApp> {
   }
 
   void _toggleTheme() {
-    setState(() {
-      if (_themeMode == ThemeMode.light) {
-        _themeMode = ThemeMode.dark;
-      } else {
-        _themeMode = ThemeMode.light;
-      }
-    });
+    // Dark mode removed; app runs strictly in clean light mode
   }
 
   void _toggleLocale() {
@@ -133,8 +127,7 @@ class _SafeLifeAppState extends State<SafeLifeApp> {
       title: 'SafeLife',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
-      themeMode: _themeMode,
+      themeMode: ThemeMode.light,
       locale: _locale,
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: const [

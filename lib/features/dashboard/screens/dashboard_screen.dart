@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -119,16 +120,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         style: const TextStyle(fontWeight: FontWeight.w900),
                       ),
                     ),
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      tooltip: 'Toggle theme',
-                      onPressed: widget.onToggleTheme,
-                      icon: Icon(
-                        widget.currentThemeMode == ThemeMode.dark
-                            ? Icons.light_mode_outlined
-                            : Icons.dark_mode_outlined,
-                      ),
-                    ),
+
                   ],
                 ),
           drawer: isDesktop
@@ -219,6 +211,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                       ),
                       SizedBox(height: isDesktop ? 48 : 32),
+                      _ProjectInfoMarquee(
+                        copy: copy,
+                        isDesktop: isDesktop,
+                      ),
+                      SizedBox(height: isDesktop ? 44 : 28),
                       _TrustStats(copy: copy),
                       const SizedBox(height: 28),
                       _Disclaimer(text: l10n?.disclaimer),
@@ -640,17 +637,7 @@ class _WebTopNavBar extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                _WebIconButton(
-                  tooltip: 'Toggle theme',
-                  onTap: onToggleTheme,
-                  child: Icon(
-                    currentThemeMode == ThemeMode.dark
-                        ? Icons.light_mode_outlined
-                        : Icons.dark_mode_outlined,
-                    size: 19,
-                  ),
-                ),
+
                 const SizedBox(width: 14),
 
                 // Account state
@@ -1870,25 +1857,35 @@ class _PreparednessPanel extends StatelessWidget {
                 child: SizedBox(
                   width: 156,
                   height: 156,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.crisis_alert_rounded,
-                        color: Colors.white,
-                        size: 46,
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        copy.sosNow,
-                        style: const TextStyle(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.crisis_alert_rounded,
                           color: Colors.white,
-                          fontSize: 26,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 2,
+                          size: 42,
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 6),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            copy.sosNow,
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: copy.isBangla ? 18 : 22,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: copy.isBangla ? 0.0 : 1.5,
+                              height: 1.15,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1993,6 +1990,352 @@ class _ProfileLink extends StatelessWidget {
             ),
           ),
           const Icon(Icons.edit_outlined, size: 16),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AUTO-MOVING PROJECT INFORMATION MARQUEE (ONE SIDE TO ANOTHER)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ProjectInfoMarquee extends StatefulWidget {
+  final _DashboardCopy copy;
+  final bool isDesktop;
+
+  const _ProjectInfoMarquee({
+    required this.copy,
+    required this.isDesktop,
+  });
+
+  @override
+  State<_ProjectInfoMarquee> createState() => _ProjectInfoMarqueeState();
+}
+
+class _ProjectInfoMarqueeState extends State<_ProjectInfoMarquee> {
+  final ScrollController _scrollController = ScrollController();
+  Timer? _timer;
+  bool _isHovered = false;
+  static const double _step = 1.0;
+  static const Duration _interval = Duration(milliseconds: 32);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _startAutoScroll();
+    });
+  }
+
+  void _startAutoScroll() {
+    _timer?.cancel();
+    _timer = Timer.periodic(_interval, (_) {
+      if (!mounted || _isHovered || !_scrollController.hasClients) return;
+      final max = _scrollController.position.maxScrollExtent;
+      if (max <= 0) return;
+      final current = _scrollController.offset;
+      final next = current + _step;
+      if (next >= max / 2) {
+        _scrollController.jumpTo(next - (max / 2));
+      } else {
+        _scrollController.jumpTo(next);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final copy = widget.copy;
+
+    final singleItems = [
+      _ProjectInfoItem(
+        tag: copy.infoMissionTag,
+        title: copy.infoMissionTitle,
+        description: copy.infoMissionDesc,
+        icon: Icons.shield_rounded,
+        color: const Color(0xFFE11D48),
+      ),
+      _ProjectInfoItem(
+        tag: copy.infoSosTag,
+        title: copy.infoSosTitle,
+        description: copy.infoSosDesc,
+        icon: Icons.crisis_alert_rounded,
+        color: const Color(0xFFDC2626),
+      ),
+      _ProjectInfoItem(
+        tag: copy.infoTriageTag,
+        title: copy.infoTriageTitle,
+        description: copy.infoTriageDesc,
+        icon: Icons.favorite_rounded,
+        color: const Color(0xFFEA580C),
+      ),
+      _ProjectInfoItem(
+        tag: copy.infoTimerTag,
+        title: copy.infoTimerTitle,
+        description: copy.infoTimerDesc,
+        icon: Icons.timer_outlined,
+        color: const Color(0xFF4F46E5),
+      ),
+      _ProjectInfoItem(
+        tag: copy.infoHelplineTag,
+        title: copy.infoHelplineTitle,
+        description: copy.infoHelplineDesc,
+        icon: Icons.support_agent_rounded,
+        color: const Color(0xFF9333EA),
+      ),
+      _ProjectInfoItem(
+        tag: copy.infoMedicalIdTag,
+        title: copy.infoMedicalIdTitle,
+        description: copy.infoMedicalIdDesc,
+        icon: Icons.medical_information_outlined,
+        color: const Color(0xFF0D9488),
+      ),
+      _ProjectInfoItem(
+        tag: copy.infoAmbulanceTag,
+        title: copy.infoAmbulanceTitle,
+        description: copy.infoAmbulanceDesc,
+        icon: Icons.airport_shuttle_rounded,
+        color: const Color(0xFF2563EB),
+      ),
+      _ProjectInfoItem(
+        tag: copy.infoBilingualTag,
+        title: copy.infoBilingualTitle,
+        description: copy.infoBilingualDesc,
+        icon: Icons.g_translate_rounded,
+        color: const Color(0xFF059669),
+      ),
+    ];
+
+    // Duplicate for seamless infinite horizontal auto-moving loop
+    final marqueeItems = [...singleItems, ...singleItems];
+    final cardWidth = widget.isDesktop ? 320.0 : 276.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Section Header
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary.withAlpha(20),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      copy.projectInfoEyebrow,
+                      style: TextStyle(
+                        color: theme.colorScheme.primary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.4,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    copy.projectInfoTitle,
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      fontSize: widget.isDesktop ? 23 : 19,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest.withAlpha(80),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: theme.colorScheme.outlineVariant.withAlpha(50),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: _isHovered ? Colors.amber : const Color(0xFF10B981),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _isHovered ? copy.pausedOnHover : copy.liveStream,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 18),
+
+        // Auto-moving Marquee Row
+        MouseRegion(
+          onEnter: (_) => setState(() => _isHovered = true),
+          onExit: (_) => setState(() => _isHovered = false),
+          child: ScrollConfiguration(
+            behavior: ScrollConfiguration.of(context).copyWith(
+              dragDevices: {
+                PointerDeviceKind.touch,
+                PointerDeviceKind.mouse,
+                PointerDeviceKind.trackpad,
+              },
+            ),
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              clipBehavior: Clip.none,
+              child: Row(
+                children: [
+                  for (int i = 0; i < marqueeItems.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 16),
+                    SizedBox(
+                      width: cardWidth,
+                      height: 146,
+                      child: _ProjectInfoCard(item: marqueeItems[i]),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProjectInfoItem {
+  final String tag;
+  final String title;
+  final String description;
+  final IconData icon;
+  final Color color;
+
+  const _ProjectInfoItem({
+    required this.tag,
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.color,
+  });
+}
+
+class _ProjectInfoCard extends StatelessWidget {
+  final _ProjectInfoItem item;
+
+  const _ProjectInfoCard({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: item.color.withAlpha(50),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: item.color.withAlpha(12),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: item.color.withAlpha(22),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(item.icon, color: item.color, size: 17),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  item.tag.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: item.color,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: item.color,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          Text(
+            item.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w900,
+              fontSize: 14.5,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Expanded(
+            child: Text(
+              item.description,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontSize: 12,
+                height: 1.4,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -2286,10 +2629,7 @@ class _WebFooter extends StatelessWidget {
           label: 'Language / ভাষা (${copy.isBangla ? 'English' : 'বাংলা'})',
           onTap: onToggleLocale,
         ),
-        _FooterLink(
-          label: '${copy.appearance}: ${currentThemeMode == ThemeMode.dark ? copy.light : copy.dark}',
-          onTap: onToggleTheme,
-        ),
+
         if (auth.canAccessResponder)
           _FooterLink(
             label: l10n?.responderPanelTitle ?? 'Responder Panel',
@@ -2702,18 +3042,7 @@ class _NavigationDrawer extends StatelessWidget {
               ),
               onTap: onToggleLocale,
             ),
-            ListTile(
-              leading: Icon(
-                currentThemeMode == ThemeMode.dark
-                    ? Icons.light_mode_outlined
-                    : Icons.dark_mode_outlined,
-              ),
-              title: Text(copy.appearance),
-              trailing: Text(
-                currentThemeMode == ThemeMode.dark ? copy.dark : copy.light,
-              ),
-              onTap: onToggleTheme,
-            ),
+
             if (auth.isAuthenticated) ...[
               const Divider(height: 24),
               ListTile(
@@ -2939,6 +3268,74 @@ class _DashboardCopy {
     '© 2026 SafeLife Emergency Response Network. All rights reserved.',
     '© ২০২৬ সেফলাইফ জরুরি সাড়া নেটওয়ার্ক। সর্বস্বত্ব সংরক্ষিত।',
   );
+
+  // Project Info Marquee
+  String get projectInfoEyebrow => _text(
+        'ABOUT SAFELIFE PLATFORM',
+        'সেফলাইফ প্ল্যাটফর্ম পরিচিতি',
+      );
+  String get projectInfoTitle => _text(
+        'Project Architecture & Core Highlights',
+        'প্ল্যাটফর্মের মূল সুবিধা ও কাঠামো',
+      );
+  String get liveStream => _text('Live Stream', 'চলমান তথ্য');
+  String get pausedOnHover => _text('Paused', 'স্থগিত');
+
+  String get infoMissionTitle => _text('Integrated Emergency Care', 'সমন্বিত জরুরি সেবা');
+  String get infoMissionTag => _text('Platform Mission', 'মূল লক্ষ্য');
+  String get infoMissionDesc => _text(
+        'All-in-one emergency ecosystem uniting women\'s safety, symptom triage, ambulance dispatch, and hospital network.',
+        'নারী নিরাপত্তা, স্বাস্থ্য যাচাই, অ্যাম্বুলেন্স প্রেরণ ও হাসপাতাল ডিরেক্টরি সমন্বিত এক নির্ভরযোগ্য সেবা ব্যবস্থা।',
+      );
+
+  String get infoSosTitle => _text('Discreet SOS & SMS Fallback', 'গোপন এসওএস ও এসএমএস');
+  String get infoSosTag => _text('Immediate Response', 'তাৎক্ষণিক সাড়া');
+  String get infoSosDesc => _text(
+        'One-tap distress trigger with live GPS tracking, cancelable countdown, and automatic SMS fallback for low-network areas.',
+        'এক চাপে লাইভ জিপিএস ট্র্যাকিং ও নেটওয়ার্ক দুর্বলতায় স্বয়ংক্রিয় অফলাইন এসএমএস সতর্কবার্তা প্রেরণ।',
+      );
+
+  String get infoTriageTitle => _text('Clinical Triage Algorithms', 'ক্লিনিক্যাল ট্রায়াজ');
+  String get infoTriageTag => _text('Medical AI / Rules', 'চিকিৎসা যাচাই');
+  String get infoTriageDesc => _text(
+        'Evidence-based cardiac risk scoring and FAST stroke assessment favoring early life-saving escalation.',
+        'হার্ট অ্যাটাক ও স্ট্রোকের মতো জটিল পরিস্থিতিতে সময় নষ্ট না করে দ্রুত ঝুঁকিনির্ধারণ ও হাসপাতালে নির্দেশনা।',
+      );
+
+  String get infoTimerTitle => _text('Walk-With-Me Safety Timer', 'নিরাপদ যাত্রা টাইমার');
+  String get infoTimerTag => _text('Transit Shield', 'যাত্রা সুরক্ষা');
+  String get infoTimerDesc => _text(
+        'Automated arrival countdown that automatically escalates alerts to guardians if a transit check-in is missed.',
+        'একাকী চলাচলের সময় যাত্রা টাইমার—সময়মতো গন্তব্যে না পৌঁছালে স্বয়ংক্রিয়ভাবে অভিভাবককে সতর্ক করে।',
+      );
+
+  String get infoHelplineTitle => _text('National Helpline Integration', 'জাতীয় জরুরি হটলাইন');
+  String get infoHelplineTag => _text('Toll-Free Access', 'টোল-ফ্রি হটলাইন');
+  String get infoHelplineDesc => _text(
+        'Direct toll-free access to Bangladesh National Emergency 999, Women & Child Helpline 109, and Gov Desk 333.',
+        'জাতীয় জরুরি সেবা ৯৯৯, নারী ও শিশু নির্যাতন প্রতিরোধ হেল্পলাইন ১০৯ এবং সরকারি তথ্যসেবা ৩৩৩ এর সরাসরি সংযোগ।',
+      );
+
+  String get infoMedicalIdTitle => _text('Instant Medical ID Access', 'জরুরি মেডিকেল আইডি');
+  String get infoMedicalIdTag => _text('Health Profile', 'স্বাস্থ্য তথ্য');
+  String get infoMedicalIdDesc => _text(
+        'Blood group, chronic conditions, and allergy data kept ready for responders in critical golden hour care.',
+        'জরুরি চিকিৎসা নিশ্চিত করতে রক্তের গ্রুপ, রোগ ও ওষুধের বিবরণ চিকিৎসকদের জন্য প্রস্তুত রাখা।',
+      );
+
+  String get infoAmbulanceTitle => _text('Priority Ambulance Routing', 'অ্যাম্বুলেন্স নেটওয়ার্ক');
+  String get infoAmbulanceTag => _text('Dispatch Network', 'দ্রুত প্রেরণ');
+  String get infoAmbulanceDesc => _text(
+        'Real-time BLS/ALS ambulance requests with status tracking and 24/7 trauma emergency directory.',
+        'লাইভ ট্র্যাকিং সুবিধাসহ প্রাথমিক ও বিশেষায়িত অ্যাম্বুলেন্স প্রেরণ ও সার্বক্ষণিক ট্রমা সেন্টার তথ্য।',
+      );
+
+  String get infoBilingualTitle => _text('Bilingual & Responsive', 'দ্বিভাষিক ও রেসপনসিভ');
+  String get infoBilingualTag => _text('Accessibility', 'সহজ ব্যবহারযোগ্য');
+  String get infoBilingualDesc => _text(
+        'Native Bangla and English support designed for low-latency performance across phones, tablets, and web.',
+        'মোবাইল, ট্যাবলেট ও কম্পিউটার সব ধরনের স্ক্রিনে তাৎক্ষণিক বাংলা ও ইংরেজি ভাষায় ব্যবহারের সুবিধা।',
+      );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
