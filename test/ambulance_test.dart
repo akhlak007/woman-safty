@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -70,6 +72,14 @@ class FakeAmbulanceRepository extends AmbulanceRepository {
   }
 }
 
+class DelayedAmbulanceRepository extends AmbulanceRepository {
+  final Completer<AmbulanceBooking> pending = Completer<AmbulanceBooking>();
+
+  @override
+  Future<AmbulanceBooking> createBooking(AmbulanceBooking booking) =>
+      pending.future;
+}
+
 Widget createAmbulanceTestApp({
   required AmbulanceProvider ambulanceProvider,
   SosProvider? sosProvider,
@@ -79,11 +89,15 @@ Widget createAmbulanceTestApp({
   return SafeLifeApp(
     authProvider: authProvider,
     ambulanceProvider: ambulanceProvider,
-    sosProvider: sosProvider ?? SosProvider(locationService: const MockLocationService()),
+    sosProvider:
+        sosProvider ??
+        SosProvider(locationService: const MockLocationService()),
     profileProvider: ProfileProvider(),
     contactsProvider: ContactsProvider(),
     initialLocale: const Locale('en'),
-    home: AmbulanceRequestScreen(locationService: locationService ?? const MockLocationService()),
+    home: AmbulanceRequestScreen(
+      locationService: locationService ?? const MockLocationService(),
+    ),
   );
 }
 
@@ -169,21 +183,24 @@ void main() {
       provider.dispose();
     });
 
-    test('Request ambulance sets active booking and status requested', () async {
-      final booking = await provider.requestAmbulance(
-        userId: 'u_test',
-        userName: 'Test User',
-        userPhone: '+8801711111111',
-        pickupAddress: 'Gulshan 2, Dhaka',
-        destinationHospital: 'United Hospital',
-        ambulanceType: AmbulanceType.als,
-      );
+    test(
+      'Request ambulance sets active booking and status requested',
+      () async {
+        final booking = await provider.requestAmbulance(
+          userId: 'u_test',
+          userName: 'Test User',
+          userPhone: '+8801711111111',
+          pickupAddress: 'Gulshan 2, Dhaka',
+          destinationHospital: 'United Hospital',
+          ambulanceType: AmbulanceType.als,
+        );
 
-      expect(provider.hasActiveBooking, isTrue);
-      expect(provider.activeBooking?.status, AmbulanceStatus.requested);
-      expect(booking.ambulanceType, AmbulanceType.als);
-      expect(booking.destinationHospital, 'United Hospital');
-    });
+        expect(provider.hasActiveBooking, isTrue);
+        expect(provider.activeBooking?.status, AmbulanceStatus.requested);
+        expect(booking.ambulanceType, AmbulanceType.als);
+        expect(booking.destinationHospital, 'United Hospital');
+      },
+    );
 
     test('Cancel active booking transitions status to cancelled', () async {
       await provider.requestAmbulance(
@@ -201,11 +218,66 @@ void main() {
       expect(provider.hasActiveBooking, isFalse);
       expect(provider.activeBooking, isNull);
     });
+
+    test(
+      'Cached booking is not exposed to a different signed-in user',
+      () async {
+        await provider.requestAmbulance(
+          userId: 'user_one',
+          userName: 'First User',
+          userPhone: '+8801711111111',
+          pickupAddress: 'Dhaka',
+          destinationHospital: 'Hospital',
+          ambulanceType: AmbulanceType.bls,
+        );
+
+        provider.bindUser('user_two');
+        await Future<void>.delayed(Duration.zero);
+
+        expect(provider.activeBooking, isNull);
+        expect(provider.hasActiveBooking, isFalse);
+      },
+    );
+
+    test('In-flight request cannot restore state after sign-out', () async {
+      final delayedRepo = DelayedAmbulanceRepository();
+      final delayedProvider = AmbulanceProvider(repository: delayedRepo);
+      addTearDown(delayedProvider.dispose);
+      delayedProvider.bindUser('user_one');
+
+      final request = delayedProvider.requestAmbulance(
+        userId: 'user_one',
+        userName: 'First User',
+        userPhone: '+8801711111111',
+        pickupAddress: 'Dhaka',
+        destinationHospital: 'Hospital',
+        ambulanceType: AmbulanceType.bls,
+      );
+      delayedProvider.bindUser(null);
+      delayedRepo.pending.complete(
+        AmbulanceBooking(
+          id: 'late_booking',
+          userId: 'user_one',
+          userName: 'First User',
+          userPhone: '+8801711111111',
+          pickupAddress: 'Dhaka',
+          destinationHospital: 'Hospital',
+          ambulanceType: AmbulanceType.bls,
+          status: AmbulanceStatus.requested,
+          createdAt: DateTime.now(),
+        ),
+      );
+      await request;
+
+      expect(delayedProvider.activeBooking, isNull);
+      expect(delayedProvider.hasActiveBooking, isFalse);
+    });
   });
 
   group('AmbulanceRequestScreen Widget Tests', () {
-    testWidgets('Renders ambulance options and allows selecting ALS vs BLS',
-        (tester) async {
+    testWidgets('Renders ambulance options and allows selecting ALS vs BLS', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -242,8 +314,9 @@ void main() {
       provider.dispose();
     });
 
-    testWidgets('Submitting ambulance request displays active tracking UI',
-        (tester) async {
+    testWidgets('Submitting ambulance request displays active tracking UI', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -259,7 +332,10 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
 
       // Enter pickup address
-      await tester.enterText(find.byType(TextField).first, 'Dhanmondi 27, Dhaka');
+      await tester.enterText(
+        find.byType(TextField).first,
+        'Dhanmondi 27, Dhaka',
+      );
       await tester.pump();
 
       // Tap Request Ambulance Dispatch

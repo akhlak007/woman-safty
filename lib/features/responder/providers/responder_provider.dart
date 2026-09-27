@@ -1,5 +1,7 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+
 import '../../../core/constants/alert_constants.dart';
 import '../models/responder_case.dart';
 import '../repositories/responder_repository.dart';
@@ -36,9 +38,9 @@ class ResponderProvider extends ChangeNotifier {
   ResponderFilter _activeFilter = ResponderFilter.all;
   bool _isLoading = true;
 
-  ResponderProvider({ResponderRepository? repository})
-      : repository = repository ?? ResponderRepository() {
-    _startListening();
+  ResponderProvider({ResponderRepository? repository, bool autoStart = true})
+    : repository = repository ?? ResponderRepository() {
+    if (autoStart) startListening();
   }
 
   List<ResponderCase> get allCases => _allCases;
@@ -73,7 +75,8 @@ class ResponderProvider extends ChangeNotifier {
       .where((c) => c.emergencyCase.riskLevel == RiskLevel.critical)
       .length;
 
-  void _startListening() {
+  void startListening() {
+    if (_subscription != null) return;
     _subscription = repository.streamActiveEmergencies().listen((cases) {
       _allCases = cases;
       _isLoading = false;
@@ -90,6 +93,16 @@ class ResponderProvider extends ChangeNotifier {
 
       notifyListeners();
     });
+  }
+
+  void stopListeningAndClear() {
+    _subscription?.cancel();
+    _subscription = null;
+    _allCases = [];
+    _selectedCase = null;
+    _activeFilter = ResponderFilter.all;
+    _isLoading = true;
+    notifyListeners();
   }
 
   void selectCase(ResponderCase rCase) {

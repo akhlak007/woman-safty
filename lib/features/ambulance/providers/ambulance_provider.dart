@@ -1,5 +1,7 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+
 import '../models/ambulance_booking.dart';
 import '../repositories/ambulance_repository.dart';
 import '../../sos/models/emergency_case.dart';
@@ -10,20 +12,32 @@ class AmbulanceProvider extends ChangeNotifier {
   AmbulanceBooking? _activeBooking;
   bool _isLoading = false;
   final List<Timer> _simulationTimers = [];
+  String? _boundUserId;
+  int _sessionGeneration = 0;
 
   AmbulanceProvider({AmbulanceRepository? repository})
-      : repository = repository ?? AmbulanceRepository() {
-    _loadCachedBooking();
-  }
+    : repository = repository ?? AmbulanceRepository();
 
   AmbulanceBooking? get activeBooking => _activeBooking;
-  bool get hasActiveBooking => _activeBooking != null &&
+  bool get hasActiveBooking =>
+      _activeBooking != null &&
       _activeBooking!.status != AmbulanceStatus.completed &&
       _activeBooking!.status != AmbulanceStatus.cancelled;
   bool get isLoading => _isLoading;
 
-  Future<void> _loadCachedBooking() async {
-    _activeBooking = await repository.getCachedActiveBooking();
+  void bindUser(String? userId) {
+    if (_boundUserId == userId) return;
+    _boundUserId = userId;
+    clearSession();
+    if (userId != null && userId.isNotEmpty) {
+      _loadCachedBooking(userId);
+    }
+  }
+
+  Future<void> _loadCachedBooking(String requestedUserId) async {
+    final cached = await repository.getCachedActiveBooking();
+    if (_boundUserId != requestedUserId) return;
+    _activeBooking = cached?.userId == requestedUserId ? cached : null;
     notifyListeners();
   }
 
@@ -37,6 +51,11 @@ class AmbulanceProvider extends ChangeNotifier {
     required String destinationHospital,
     required AmbulanceType ambulanceType,
   }) async {
+    if (_boundUserId != null && _boundUserId != userId) {
+      throw StateError('Ambulance request does not match the active user.');
+    }
+    final requestGeneration = _sessionGeneration;
+    final requestUserId = _boundUserId ?? userId;
     _isLoading = true;
     notifyListeners();
 
@@ -56,6 +75,10 @@ class AmbulanceProvider extends ChangeNotifier {
       );
 
       final created = await repository.createBooking(newBooking);
+      if (requestGeneration != _sessionGeneration ||
+          (_boundUserId != null && _boundUserId != requestUserId)) {
+        return created;
+      }
       _activeBooking = created;
       _isLoading = false;
       notifyListeners();
@@ -65,8 +88,10 @@ class AmbulanceProvider extends ChangeNotifier {
 
       return created;
     } catch (e) {
-      _isLoading = false;
-      notifyListeners();
+      if (requestGeneration == _sessionGeneration) {
+        _isLoading = false;
+        notifyListeners();
+      }
       rethrow;
     }
   }
@@ -75,61 +100,79 @@ class AmbulanceProvider extends ChangeNotifier {
     _cancelTimers();
 
     // Step 1: Dispatched after 3 seconds
-    _simulationTimers.add(Timer(const Duration(seconds: 3), () async {
-      if (_activeBooking?.id != bookingId || _activeBooking?.status == AmbulanceStatus.cancelled) return;
-      await repository.updateBookingStatus(
-        bookingId,
-        AmbulanceStatus.dispatched,
-        driverName: 'Md. Rafiqul Islam',
-        driverPhone: '+8801711223344',
-        vehicleNumber: 'Dhaka Metro-Cha 11-4521',
-        estimatedMinutes: 12,
-      );
-      _activeBooking = _activeBooking?.copyWith(
-        status: AmbulanceStatus.dispatched,
-        driverName: 'Md. Rafiqul Islam',
-        driverPhone: '+8801711223344',
-        vehicleNumber: 'Dhaka Metro-Cha 11-4521',
-        estimatedMinutes: 12,
-      );
-      notifyListeners();
-    }));
+    _simulationTimers.add(
+      Timer(const Duration(seconds: 3), () async {
+        if (_activeBooking?.id != bookingId ||
+            _activeBooking?.status == AmbulanceStatus.cancelled) {
+          return;
+        }
+        await repository.updateBookingStatus(
+          bookingId,
+          AmbulanceStatus.dispatched,
+          driverName: 'Md. Rafiqul Islam',
+          driverPhone: '+8801711223344',
+          vehicleNumber: 'Dhaka Metro-Cha 11-4521',
+          estimatedMinutes: 12,
+        );
+        _activeBooking = _activeBooking?.copyWith(
+          status: AmbulanceStatus.dispatched,
+          driverName: 'Md. Rafiqul Islam',
+          driverPhone: '+8801711223344',
+          vehicleNumber: 'Dhaka Metro-Cha 11-4521',
+          estimatedMinutes: 12,
+        );
+        notifyListeners();
+      }),
+    );
 
     // Step 2: En Route after 7 seconds
-    _simulationTimers.add(Timer(const Duration(seconds: 7), () async {
-      if (_activeBooking?.id != bookingId || _activeBooking?.status == AmbulanceStatus.cancelled) return;
-      await repository.updateBookingStatus(
-        bookingId,
-        AmbulanceStatus.enRoute,
-        estimatedMinutes: 7,
-      );
-      _activeBooking = _activeBooking?.copyWith(
-        status: AmbulanceStatus.enRoute,
-        estimatedMinutes: 7,
-      );
-      notifyListeners();
-    }));
+    _simulationTimers.add(
+      Timer(const Duration(seconds: 7), () async {
+        if (_activeBooking?.id != bookingId ||
+            _activeBooking?.status == AmbulanceStatus.cancelled) {
+          return;
+        }
+        await repository.updateBookingStatus(
+          bookingId,
+          AmbulanceStatus.enRoute,
+          estimatedMinutes: 7,
+        );
+        _activeBooking = _activeBooking?.copyWith(
+          status: AmbulanceStatus.enRoute,
+          estimatedMinutes: 7,
+        );
+        notifyListeners();
+      }),
+    );
 
     // Step 3: Arrived on scene after 14 seconds
-    _simulationTimers.add(Timer(const Duration(seconds: 14), () async {
-      if (_activeBooking?.id != bookingId || _activeBooking?.status == AmbulanceStatus.cancelled) return;
-      await repository.updateBookingStatus(
-        bookingId,
-        AmbulanceStatus.arrived,
-        estimatedMinutes: 0,
-      );
-      _activeBooking = _activeBooking?.copyWith(
-        status: AmbulanceStatus.arrived,
-        estimatedMinutes: 0,
-      );
-      notifyListeners();
-    }));
+    _simulationTimers.add(
+      Timer(const Duration(seconds: 14), () async {
+        if (_activeBooking?.id != bookingId ||
+            _activeBooking?.status == AmbulanceStatus.cancelled) {
+          return;
+        }
+        await repository.updateBookingStatus(
+          bookingId,
+          AmbulanceStatus.arrived,
+          estimatedMinutes: 0,
+        );
+        _activeBooking = _activeBooking?.copyWith(
+          status: AmbulanceStatus.arrived,
+          estimatedMinutes: 0,
+        );
+        notifyListeners();
+      }),
+    );
   }
 
   Future<void> cancelBooking() async {
     _cancelTimers();
     if (_activeBooking != null) {
-      await repository.updateBookingStatus(_activeBooking!.id, AmbulanceStatus.cancelled);
+      await repository.updateBookingStatus(
+        _activeBooking!.id,
+        AmbulanceStatus.cancelled,
+      );
       _activeBooking = null;
       notifyListeners();
     }
@@ -138,7 +181,10 @@ class AmbulanceProvider extends ChangeNotifier {
   Future<void> completeBooking() async {
     _cancelTimers();
     if (_activeBooking != null) {
-      await repository.updateBookingStatus(_activeBooking!.id, AmbulanceStatus.completed);
+      await repository.updateBookingStatus(
+        _activeBooking!.id,
+        AmbulanceStatus.completed,
+      );
       _activeBooking = null;
       notifyListeners();
     }
@@ -149,6 +195,15 @@ class AmbulanceProvider extends ChangeNotifier {
       t.cancel();
     }
     _simulationTimers.clear();
+  }
+
+  /// Clears user-specific booking state locally when the account changes.
+  void clearSession() {
+    _sessionGeneration++;
+    _cancelTimers();
+    _activeBooking = null;
+    _isLoading = false;
+    notifyListeners();
   }
 
   @override

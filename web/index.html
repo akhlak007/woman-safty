@@ -1,46 +1,129 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta
+    name="description"
+    content="SafeLife provides responsive women’s safety tools, emergency SOS, ambulance support, medical triage, and Bangladesh helplines."
+  >
+  <meta name="theme-color" content="#c51620">
 
-  <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="safelife">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="SafeLife">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <link rel="icon" type="image/png" href="favicon.png">
 
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
-
-  <title>safelife</title>
+  <title>SafeLife | Emergency Safety & Medical Support</title>
   <link rel="manifest" href="manifest.json">
+
+  <style>
+    html,
+    body {
+      width: 100%;
+      min-height: 100%;
+      margin: 0;
+      background: #f8f8f7;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    #website-loader {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 75% 20%, rgba(197, 22, 32, 0.10), transparent 28rem),
+        #f8f8f7;
+      transition: opacity 220ms ease, visibility 220ms ease;
+    }
+
+    #website-loader.is-hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .loader-card {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 18px 22px;
+      color: #171717;
+    }
+
+    .loader-mark {
+      width: 52px;
+      height: 52px;
+      display: grid;
+      place-items: center;
+      border-radius: 16px;
+      color: #fff;
+      background: #c51620;
+      box-shadow: 0 14px 35px rgba(197, 22, 32, 0.28);
+      font-size: 26px;
+      font-weight: 900;
+    }
+
+    .loader-brand {
+      margin: 0 0 3px;
+      font-size: 24px;
+      font-weight: 850;
+      letter-spacing: -0.6px;
+    }
+
+    .loader-message {
+      margin: 0;
+      color: #666;
+      font-size: 13px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #website-loader { transition: none; }
+    }
+  </style>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
+  <div id="website-loader" role="status" aria-live="polite">
+    <div class="loader-card">
+      <div class="loader-mark" aria-hidden="true">+</div>
+      <div>
+        <p class="loader-brand">SafeLife</p>
+        <p class="loader-message">Preparing emergency support…</p>
+      </div>
+    </div>
+  </div>
 
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
+  <script>
+    (() => {
+      const hideLoader = () => {
+        const loader = document.getElementById('website-loader');
+        if (!loader || loader.classList.contains('is-hidden')) return;
+        loader.classList.add('is-hidden');
+        window.setTimeout(() => loader.remove(), 240);
+      };
+
+      let fallbackScheduled = false;
+      const observer = new MutationObserver(() => {
+        if (document.querySelector('flutter-view, flt-glass-pane')) {
+          if (!fallbackScheduled) {
+            fallbackScheduled = true;
+            window.setTimeout(hideLoader, 2000);
+          }
+          observer.disconnect();
+        }
+      });
+
+      observer.observe(document.body, { childList: true, subtree: true });
+      window.addEventListener('flutter-first-frame', hideLoader, { once: true });
+    })();
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

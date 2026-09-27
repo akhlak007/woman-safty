@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+
 import '../../../core/errors/app_exceptions.dart';
 
 class AuthRepository {
@@ -16,7 +17,8 @@ class AuthRepository {
 
   Stream<User?> get authStateChanges {
     try {
-      return _auth.authStateChanges();
+      // Includes sign-in/out and refreshed custom authorization claims.
+      return _auth.idTokenChanges();
     } catch (_) {
       return const Stream.empty();
     }
@@ -42,7 +44,10 @@ class AuthRepository {
     } on FirebaseAuthException catch (e) {
       throw AuthException(_mapAuthErrorCode(e.code), e.message);
     } catch (e) {
-      throw AuthException('An unexpected error occurred during sign in.', e.toString());
+      throw AuthException(
+        'An unexpected error occurred during sign in.',
+        e.toString(),
+      );
     }
   }
 
@@ -58,7 +63,10 @@ class AuthRepository {
     } on FirebaseAuthException catch (e) {
       throw AuthException(_mapAuthErrorCode(e.code), e.message);
     } catch (e) {
-      throw AuthException('An unexpected error occurred during registration.', e.toString());
+      throw AuthException(
+        'An unexpected error occurred during registration.',
+        e.toString(),
+      );
     }
   }
 

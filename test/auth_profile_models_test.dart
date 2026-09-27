@@ -6,39 +6,42 @@ void main() {
   group('Phase 1: UserProfile Model Tests', () {
     final now = DateTime(2026, 9, 19, 1, 0, 0);
 
-    test('UserProfile should correctly serialize and deserialize to/from Map', () {
-      final profile = UserProfile(
-        uid: 'user_123',
-        name: 'Fatima Rahman',
-        phone: '+8801712345678',
-        email: 'fatima@example.com',
-        bloodGroup: 'B+',
-        conditions: ['Hypertension (High BP)', 'Diabetes Mellitus'],
-        medications: ['Metformin 500mg', 'Amlodipine 5mg'],
-        allergies: ['Penicillin'],
-        language: 'bn',
-        createdAt: now,
-        updatedAt: now,
-      );
+    test(
+      'UserProfile should correctly serialize and deserialize to/from Map',
+      () {
+        final profile = UserProfile(
+          uid: 'user_123',
+          name: 'Fatima Rahman',
+          phone: '+8801712345678',
+          email: 'fatima@example.com',
+          bloodGroup: 'B+',
+          conditions: ['Hypertension (High BP)', 'Diabetes Mellitus'],
+          medications: ['Metformin 500mg', 'Amlodipine 5mg'],
+          allergies: ['Penicillin'],
+          language: 'bn',
+          createdAt: now,
+          updatedAt: now,
+        );
 
-      final map = profile.toMap();
-      expect(map['uid'], 'user_123');
-      expect(map['name'], 'Fatima Rahman');
-      expect(map['bloodGroup'], 'B+');
-      expect(map['conditions'], contains('Hypertension (High BP)'));
-      expect(map['medications'], contains('Metformin 500mg'));
-      expect(map['allergies'], contains('Penicillin'));
+        final map = profile.toMap();
+        expect(map['uid'], 'user_123');
+        expect(map['name'], 'Fatima Rahman');
+        expect(map['bloodGroup'], 'B+');
+        expect(map['conditions'], contains('Hypertension (High BP)'));
+        expect(map['medications'], contains('Metformin 500mg'));
+        expect(map['allergies'], contains('Penicillin'));
 
-      final restored = UserProfile.fromMap(map, 'user_123');
-      expect(restored.uid, profile.uid);
-      expect(restored.name, profile.name);
-      expect(restored.phone, profile.phone);
-      expect(restored.email, profile.email);
-      expect(restored.bloodGroup, profile.bloodGroup);
-      expect(restored.conditions, profile.conditions);
-      expect(restored.medications, profile.medications);
-      expect(restored.allergies, profile.allergies);
-    });
+        final restored = UserProfile.fromMap(map, 'user_123');
+        expect(restored.uid, profile.uid);
+        expect(restored.name, profile.name);
+        expect(restored.phone, profile.phone);
+        expect(restored.email, profile.email);
+        expect(restored.bloodGroup, profile.bloodGroup);
+        expect(restored.conditions, profile.conditions);
+        expect(restored.medications, profile.medications);
+        expect(restored.allergies, profile.allergies);
+      },
+    );
 
     test('UserProfile copyWith should update specific fields immutably', () {
       final profile = UserProfile(
@@ -63,7 +66,10 @@ void main() {
 
     test('Available blood groups contain all 8 standard types', () {
       expect(UserProfile.availableBloodGroups.length, 8);
-      expect(UserProfile.availableBloodGroups, containsAll(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']));
+      expect(
+        UserProfile.availableBloodGroups,
+        containsAll(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']),
+      );
     });
   });
 

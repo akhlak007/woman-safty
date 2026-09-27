@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:safelife/app/routes.dart';
@@ -8,12 +9,10 @@ import 'package:safelife/core/constants/emergency_numbers.dart';
 import 'package:safelife/features/auth/providers/auth_provider.dart';
 import 'package:safelife/features/profile/models/emergency_contact.dart';
 import 'package:safelife/features/profile/providers/contacts_provider.dart';
-import 'package:safelife/features/profile/screens/emergency_contacts_screen.dart';
-import 'package:safelife/features/profile/screens/medical_profile_screen.dart';
 import 'package:safelife/features/sos/providers/sos_provider.dart';
 import 'package:safelife/l10n/app_localizations.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   final VoidCallback onToggleTheme;
   final VoidCallback onToggleLocale;
   final Locale currentLocale;
@@ -28,288 +27,558 @@ class DashboardScreen extends StatelessWidget {
   });
 
   @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _servicesKey = GlobalKey();
+  final GlobalKey _helplinesKey = GlobalKey();
+  final GlobalKey _prepKey = GlobalKey();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToKey(GlobalKey key) {
+    final context = key.currentContext;
+    if (context != null) {
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 550),
+        curve: Curves.easeInOutCubic,
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final auth = context.watch<SafeLifeAuthProvider>();
+    final contacts = context.watch<ContactsProvider>();
+    final sos = context.watch<SosProvider>();
+    final copy = _DashboardCopy(widget.currentLocale.languageCode == 'bn');
     final riskTheme = theme.extension<RiskLevelTheme>() ?? RiskLevelTheme.light;
-    final authProvider = context.watch<SafeLifeAuthProvider>();
-    final contactsProvider = context.watch<ContactsProvider>();
-    final sosProvider = context.watch<SosProvider>();
-    final userProfile = authProvider.userProfile;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          l10n?.appName ?? 'SafeLife',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Language / ভাষা',
-            icon: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                border: Border.all(color: theme.colorScheme.outline),
-                borderRadius: BorderRadius.circular(8),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final screenWidth = constraints.maxWidth;
+        final isDesktop = screenWidth >= 960;
+        final isTablet = screenWidth >= 600 && screenWidth < 960;
+        final contentHorizontalPadding = isDesktop ? 36.0 : (isTablet ? 24.0 : 16.0);
+
+        return Scaffold(
+          appBar: isDesktop
+              ? PreferredSize(
+                  preferredSize: const Size.fromHeight(74),
+                  child: _WebTopNavBar(
+                    auth: auth,
+                    currentLocale: widget.currentLocale,
+                    currentThemeMode: widget.currentThemeMode,
+                    onToggleLocale: widget.onToggleLocale,
+                    onToggleTheme: widget.onToggleTheme,
+                    copy: copy,
+                    l10n: l10n,
+                    onScrollToServices: () => _scrollToKey(_servicesKey),
+                    onScrollToHelplines: () => _scrollToKey(_helplinesKey),
+                    onScrollToPrep: () => _scrollToKey(_prepKey),
+                    onSosPressed: () => _handleSos(context, sos),
+                  ),
+                )
+              : AppBar(
+                  title: Text(
+                    l10n?.appName ?? 'SafeLife',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  actions: [
+                    if (!auth.isAuthenticated)
+                      TextButton(
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                        ),
+                        onPressed: () => Navigator.of(context).pushNamed(AppRoutes.login),
+                        child: Text(
+                          l10n?.signIn ?? 'Sign In',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      tooltip: 'Language / ভাষা',
+                      onPressed: widget.onToggleLocale,
+                      icon: Text(
+                        widget.currentLocale.languageCode == 'bn' ? 'EN' : 'বাং',
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      tooltip: 'Toggle theme',
+                      onPressed: widget.onToggleTheme,
+                      icon: Icon(
+                        widget.currentThemeMode == ThemeMode.dark
+                            ? Icons.light_mode_outlined
+                            : Icons.dark_mode_outlined,
+                      ),
+                    ),
+                  ],
+                ),
+          drawer: isDesktop
+              ? null
+              : _NavigationDrawer(
+                  auth: auth,
+                  contacts: contacts,
+                  currentLocale: widget.currentLocale,
+                  currentThemeMode: widget.currentThemeMode,
+                  onToggleLocale: widget.onToggleLocale,
+                  onToggleTheme: widget.onToggleTheme,
+                  copy: copy,
+                ),
+          body: SafeArea(
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              key: const PageStorageKey('dashboard-scroll'),
+              padding: EdgeInsets.fromLTRB(
+                contentHorizontalPadding,
+                isDesktop ? 28 : 16,
+                contentHorizontalPadding,
+                48,
               ),
-              child: Text(
-                currentLocale.languageCode == 'bn' ? 'EN' : 'বাং',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1320),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (sos.hasActiveEmergency) ...[
+                        _ActiveEmergencyBanner(
+                          copy: copy,
+                          onTap: () => Navigator.of(context).pushNamed(AppRoutes.sosActive),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+                      _WebHeroSection(
+                        copy: copy,
+                        hasActiveEmergency: sos.hasActiveEmergency,
+                        sosLabel: l10n?.sos ?? 'SOS',
+                        isDesktop: isDesktop,
+                        verifiedContacts: contacts.verifiedContacts.length,
+                        bloodGroup: auth.userProfile?.bloodGroup,
+                        onSos: () => _handleSos(context, sos),
+                        onAmbulance: () => Navigator.of(context).pushNamed(AppRoutes.ambulance),
+                        onProfile: () => Navigator.of(context).pushNamed(AppRoutes.profile),
+                        onContacts: () => Navigator.of(context).pushNamed(AppRoutes.contacts),
+                      ),
+                      const SizedBox(height: 32),
+                      Container(
+                        key: _helplinesKey,
+                        child: _WebHelplineStrip(copy: copy),
+                      ),
+                      SizedBox(height: isDesktop ? 56 : 38),
+                      Container(
+                        key: _servicesKey,
+                        child: Column(
+                          children: [
+                            _SectionHeading(
+                              eyebrow: copy.sectionEyebrow,
+                              title: copy.sectionTitle,
+                              subtitle: copy.sectionSubtitle,
+                            ),
+                            const SizedBox(height: 24),
+                            _ServicesGrid(
+                              services: _services(
+                                context,
+                                l10n,
+                                riskTheme,
+                                sos,
+                                copy,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: isDesktop ? 56 : 38),
+                      Container(
+                        key: _prepKey,
+                        child: _PreparednessPanel(
+                          copy: copy,
+                          bloodGroup: auth.userProfile?.bloodGroup,
+                          verifiedContacts: contacts.verifiedContacts.length,
+                          isDesktop: isDesktop,
+                          onProfile: () => Navigator.of(context).pushNamed(AppRoutes.profile),
+                          onContacts: () => Navigator.of(context).pushNamed(AppRoutes.contacts),
+                          onSos: () => _handleSos(context, sos),
+                        ),
+                      ),
+                      SizedBox(height: isDesktop ? 48 : 32),
+                      _TrustStats(copy: copy),
+                      const SizedBox(height: 28),
+                      _Disclaimer(text: l10n?.disclaimer),
+                      SizedBox(height: isDesktop ? 56 : 36),
+                      _WebFooter(
+                        copy: copy,
+                        l10n: l10n,
+                        isDesktop: isDesktop,
+                        auth: auth,
+                        onToggleLocale: widget.onToggleLocale,
+                        onToggleTheme: widget.onToggleTheme,
+                        currentThemeMode: widget.currentThemeMode,
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-            onPressed: onToggleLocale,
           ),
-          IconButton(
-            tooltip: 'Toggle Theme',
-            icon: Icon(
-              currentThemeMode == ThemeMode.dark
-                  ? Icons.light_mode_outlined
-                  : Icons.dark_mode_outlined,
+        );
+      },
+    );
+  }
+
+  List<_ServiceData> _services(
+    BuildContext context,
+    AppLocalizations? l10n,
+    RiskLevelTheme riskTheme,
+    SosProvider sos,
+    _DashboardCopy copy,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    final auth = context.read<SafeLifeAuthProvider>();
+    return [
+      _ServiceData(
+        title: l10n?.womenSafety ?? 'Women Safety',
+        subtitle: copy.womenSafetyDescription,
+        icon: Icons.security_rounded,
+        color: scheme.primary,
+        onTap: () => _handleSos(context, sos),
+      ),
+      _ServiceData(
+        title: l10n?.cardiacEmergency ?? 'Heart Attack / Cardiac',
+        subtitle: copy.cardiacDescription,
+        icon: Icons.favorite_rounded,
+        color: riskTheme.getColor(RiskLevel.high),
+        onTap: () => Navigator.of(context).pushNamed(AppRoutes.heartTriage),
+      ),
+      _ServiceData(
+        title: l10n?.strokeEmergency ?? 'Stroke (FAST)',
+        subtitle: copy.strokeDescription,
+        icon: Icons.medical_services_rounded,
+        color: riskTheme.getColor(RiskLevel.critical),
+        onTap: () => Navigator.of(context).pushNamed(AppRoutes.strokeTriage),
+      ),
+      _ServiceData(
+        title: l10n?.ambulanceRequestTitle ?? 'Request Ambulance',
+        subtitle: copy.ambulanceDescription,
+        icon: Icons.airport_shuttle_rounded,
+        color: scheme.error,
+        onTap: () => Navigator.of(context).pushNamed(AppRoutes.ambulance),
+      ),
+      _ServiceData(
+        title: l10n?.hospitalDirectoryTitle ?? 'Emergency Hospitals',
+        subtitle: copy.hospitalDescription,
+        icon: Icons.local_hospital_rounded,
+        color: scheme.secondary,
+        onTap: () => Navigator.of(context).pushNamed(AppRoutes.hospitals),
+      ),
+      _ServiceData(
+        title: l10n?.safetyTimerTitle ?? 'Safety Timer',
+        subtitle: copy.timerDescription,
+        icon: Icons.timer_rounded,
+        color: Colors.amber.shade800,
+        onTap: () => Navigator.of(context).pushNamed(AppRoutes.safetyTimer),
+      ),
+      _ServiceData(
+        title: l10n?.incidentReportTitle ?? 'Report Safety Incident',
+        subtitle: copy.reportDescription,
+        icon: Icons.report_problem_outlined,
+        color: Colors.deepOrange.shade700,
+        onTap: () => Navigator.of(context).pushNamed(AppRoutes.incidentReport),
+      ),
+      _ServiceData(
+        title: l10n?.emergencyHistoryTitle ?? 'Emergency History',
+        subtitle: copy.historyDescription,
+        icon: Icons.history_rounded,
+        color: Colors.blueGrey.shade700,
+        onTap: () => Navigator.of(context).pushNamed(AppRoutes.history),
+      ),
+      if (auth.canAccessResponder)
+        _ServiceData(
+          title: l10n?.responderPanelTitle ?? 'Responder Panel',
+          subtitle: copy.responderDescription,
+          icon: Icons.dashboard_customize_outlined,
+          color: Colors.teal.shade700,
+          onTap: () => Navigator.of(context).pushNamed(AppRoutes.responder),
+        ),
+      if (auth.canAccessAdmin)
+        _ServiceData(
+          title: l10n?.adminPortalTitle ?? 'Admin Analytics',
+          subtitle: copy.adminDescription,
+          icon: Icons.analytics_outlined,
+          color: Colors.indigo.shade700,
+          onTap: () => Navigator.of(context).pushNamed(AppRoutes.admin),
+        ),
+    ];
+  }
+
+  void _handleSos(BuildContext context, SosProvider sos) {
+    if (!context.read<SafeLifeAuthProvider>().isAuthenticated) {
+      Navigator.of(context).pushNamed(AppRoutes.login);
+      return;
+    }
+    if (sos.hasActiveEmergency) {
+      Navigator.of(context).pushNamed(AppRoutes.sosActive);
+      return;
+    }
+    _showSosCountdownDialog(context);
+  }
+
+  void _showSosCountdownDialog(BuildContext context) {
+    final auth = context.read<SafeLifeAuthProvider>();
+    final contacts = context.read<ContactsProvider>().verifiedContacts;
+    final sos = context.read<SosProvider>();
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => _CountdownDialog(
+        userId: auth.user?.uid ?? '',
+        userName:
+            auth.userProfile?.name ?? auth.user?.displayName ?? 'SafeLife User',
+        userPhone: auth.userProfile?.phone ?? auth.user?.phoneNumber ?? '',
+        contacts: contacts,
+        language: widget.currentLocale.languageCode,
+        sosProvider: sos,
+        onDispatched: () {
+          Navigator.of(dialogContext).pop();
+          Navigator.of(context).pushNamed(AppRoutes.sosActive);
+        },
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REUSABLE WEB HOVER CARD WIDGET
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _HoverCard extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  final double hoverTranslateY;
+  final Color? hoverBorderColor;
+  final BorderRadius? borderRadius;
+  final Color? color;
+  final EdgeInsetsGeometry? padding;
+
+  const _HoverCard({
+    required this.child,
+    this.onTap,
+    this.hoverTranslateY = -4.0,
+    this.hoverBorderColor,
+    this.borderRadius,
+    this.color,
+    this.padding,
+  });
+
+  @override
+  State<_HoverCard> createState() => _HoverCardState();
+}
+
+class _HoverCardState extends State<_HoverCard> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final radius = widget.borderRadius ?? BorderRadius.circular(16);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return MouseRegion(
+      cursor: widget.onTap != null ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        transform: Matrix4.translationValues(0, _isHovered ? widget.hoverTranslateY : 0, 0),
+        decoration: BoxDecoration(
+          color: widget.color ?? theme.colorScheme.surface,
+          borderRadius: radius,
+          border: Border.all(
+            color: _isHovered
+                ? (widget.hoverBorderColor ?? theme.colorScheme.primary.withAlpha(160))
+                : theme.colorScheme.outlineVariant.withAlpha(70),
+            width: _isHovered ? 1.5 : 1.0,
+          ),
+          boxShadow: _isHovered
+              ? [
+                  BoxShadow(
+                    color: (widget.hoverBorderColor ?? theme.colorScheme.primary).withAlpha(isDark ? 50 : 25),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ]
+              : [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(isDark ? 25 : 8),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: radius,
+          child: InkWell(
+            borderRadius: radius,
+            onTap: widget.onTap,
+            hoverColor: Colors.transparent,
+            child: Padding(
+              padding: widget.padding ?? EdgeInsets.zero,
+              child: widget.child,
             ),
-            onPressed: onToggleTheme,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOP WEB NAVIGATION BAR (Desktop width >= 960px)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _WebTopNavBar extends StatelessWidget {
+  final SafeLifeAuthProvider auth;
+  final Locale currentLocale;
+  final ThemeMode currentThemeMode;
+  final VoidCallback onToggleLocale;
+  final VoidCallback onToggleTheme;
+  final _DashboardCopy copy;
+  final AppLocalizations? l10n;
+  final VoidCallback onScrollToServices;
+  final VoidCallback onScrollToHelplines;
+  final VoidCallback onScrollToPrep;
+  final VoidCallback onSosPressed;
+
+  const _WebTopNavBar({
+    required this.auth,
+    required this.currentLocale,
+    required this.currentThemeMode,
+    required this.onToggleLocale,
+    required this.onToggleTheme,
+    required this.copy,
+    required this.l10n,
+    required this.onScrollToServices,
+    required this.onScrollToHelplines,
+    required this.onScrollToPrep,
+    required this.onSosPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF131722).withAlpha(245) : Colors.white.withAlpha(245),
+        border: Border(
+          bottom: BorderSide(
+            color: theme.colorScheme.outlineVariant.withAlpha(70),
+            width: 1,
+          ),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(isDark ? 30 : 10),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      drawer: Drawer(
-        child: Column(
-          children: [
-            UserAccountsDrawerHeader(
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary,
-              ),
-              accountName: Text(
-                userProfile?.name.isNotEmpty == true
-                    ? userProfile!.name
-                    : (authProvider.user?.email ?? 'SafeLife User'),
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
-              ),
-              accountEmail: Text(
-                userProfile?.phone.isNotEmpty == true
-                    ? '${userProfile!.phone} • ${userProfile.bloodGroup ?? 'Blood Group Not Set'}'
-                    : (authProvider.user?.email ?? ''),
-              ),
-              currentAccountPicture: CircleAvatar(
-                backgroundColor: Colors.white,
-                child: Text(
-                  userProfile?.name.isNotEmpty == true
-                      ? userProfile!.name[0].toUpperCase()
-                      : 'S',
-                  style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.badge_outlined),
-              title: Text(l10n?.medicalProfile ?? 'Medical Profile'),
-              subtitle: Text(userProfile?.bloodGroup ?? 'Configure conditions & meds'),
-              onTap: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const MedicalProfileScreen()),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.people_alt_outlined),
-              title: Text(l10n?.emergencyContacts ?? 'Emergency Contacts'),
-              subtitle: Text(
-                '${contactsProvider.verifiedContacts.length} verified • ${contactsProvider.contacts.length} total',
-              ),
-              onTap: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const EmergencyContactsScreen()),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.report_problem_outlined),
-              title: Text(l10n?.incidentReportTitle ?? 'Report Safety Incident'),
-              subtitle: const Text('Confidential harassment/threat report'),
-              onTap: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).pushNamed(AppRoutes.incidentReport);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.history_rounded),
-              title: Text(l10n?.emergencyHistoryTitle ?? 'Emergency History'),
-              subtitle: const Text('View past alerts and triage records'),
-              onTap: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).pushNamed(AppRoutes.history);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.local_hospital_outlined),
-              title: Text(l10n?.hospitalDirectoryTitle ?? 'Emergency Hospitals'),
-              subtitle: const Text('Find nearby specialized emergency facilities'),
-              onTap: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).pushNamed(AppRoutes.hospitals);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.airport_shuttle_outlined),
-              title: Text(l10n?.ambulanceRequestTitle ?? 'Request Ambulance'),
-              subtitle: const Text('Emergency dispatch & timeline tracking'),
-              onTap: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).pushNamed(AppRoutes.ambulance);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.timer_outlined),
-              title: Text(l10n?.safetyTimerTitle ?? 'Safety Timer'),
-              subtitle: const Text('Timed check-in with automatic SOS'),
-              onTap: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).pushNamed(AppRoutes.safetyTimer);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.settings_outlined),
-              title: Text(l10n?.settingsTitle ?? 'Settings & Preferences'),
-              subtitle: const Text('Language, appearance, SOS countdown delay'),
-              onTap: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).pushNamed(AppRoutes.settings);
-              },
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.analytics_outlined),
-              title: Text(l10n?.adminPortalTitle ?? 'Admin Analytics Portal'),
-              subtitle: const Text('User metrics, hotspots, thesis evaluation'),
-              onTap: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).pushNamed(AppRoutes.admin);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.dashboard_customize_outlined),
-              title: Text(l10n?.responderPanelTitle ?? 'Responder Command Panel'),
-              subtitle: const Text('Live emergency queue & hospital triage dispatch'),
-              onTap: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).pushNamed(AppRoutes.responder);
-              },
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.language_rounded),
-              title: const Text('Language / ভাষা'),
-              trailing: Text(
-                currentLocale.languageCode == 'bn' ? 'বাংলা' : 'English',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              onTap: onToggleLocale,
-            ),
-            ListTile(
-              leading: Icon(
-                currentThemeMode == ThemeMode.dark
-                    ? Icons.light_mode_outlined
-                    : Icons.dark_mode_outlined,
-              ),
-              title: const Text('Appearance'),
-              trailing: Text(
-                currentThemeMode == ThemeMode.dark ? 'Dark' : 'Light',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              onTap: onToggleTheme,
-            ),
-            const Spacer(),
-            if (authProvider.isAuthenticated) ...[
-              const Divider(),
-              ListTile(
-                leading: Icon(Icons.logout_rounded, color: theme.colorScheme.error),
-                title: Text(
-                  l10n?.signOut ?? 'Sign Out',
-                  style: TextStyle(
-                    color: theme.colorScheme.error,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _confirmLogout(context, authProvider);
-                },
-              ),
-              const SizedBox(height: 12),
-            ],
-          ],
-        ),
-      ),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isDesktop = constraints.maxWidth >= 960;
-
-            if (isDesktop) {
-              return Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1200),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1360),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+            child: Row(
+              children: [
+                // Brand logo & name
+                MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: InkWell(
+                    onTap: () {},
+                    borderRadius: BorderRadius.circular(12),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (sosProvider.hasActiveEmergency) ...[
-                          _buildActiveEmergencyBanner(context, theme, l10n),
-                          const SizedBox(height: 20),
-                        ],
-                        Row(
+                        Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFDC2626), Color(0xFF991B1B)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFDC2626).withAlpha(70),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.health_and_safety_rounded,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            // Left Column: Interactive SOS Beacon, Profile & Helplines
-                            SizedBox(
-                              width: 380,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  _buildQuickProfileBar(context, theme, l10n, userProfile, contactsProvider),
-                                  const SizedBox(height: 16),
-                                  _buildDisclaimer(theme, l10n),
-                                  const SizedBox(height: 24),
-                                  _buildSosBeacon(context, theme, l10n, sosProvider),
-                                  const SizedBox(height: 24),
-                                  _buildHelplines(theme),
-                                ],
+                            Text(
+                              l10n?.appName ?? 'SafeLife',
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.4,
                               ),
                             ),
-                            const SizedBox(width: 32),
-                            // Right Column: Comprehensive Emergency Services & Triage Grid
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Emergency Services & Clinical Triage',
-                                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                            Row(
+                              children: [
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF10B981),
+                                    shape: BoxShape.circle,
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Rapid dispatch, guideline-directed triage, specialized hospitals, and command panels',
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: theme.colorScheme.onSurfaceVariant,
-                                    ),
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  copy.systemReady,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                    letterSpacing: 0.6,
                                   ),
-                                  const SizedBox(height: 18),
-                                  GridView.count(
-                                    crossAxisCount: constraints.maxWidth >= 1200 ? 2 : 2,
-                                    shrinkWrap: true,
-                                    physics: const NeverScrollableScrollPhysics(),
-                                    mainAxisSpacing: 12,
-                                    crossAxisSpacing: 12,
-                                    childAspectRatio: 2.5,
-                                    children: _buildAllServiceTiles(context, theme, riskTheme, l10n, sosProvider),
-                                  ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -317,289 +586,1304 @@ class DashboardScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-              );
-            }
+                const SizedBox(width: 28),
 
-            // Mobile / Tablet Compact Layout
-            return Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 600),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (sosProvider.hasActiveEmergency) ...[
-                        _buildActiveEmergencyBanner(context, theme, l10n),
-                        const SizedBox(height: 16),
-                      ],
-                      _buildQuickProfileBar(context, theme, l10n, userProfile, contactsProvider),
-                      const SizedBox(height: 16),
-                      _buildDisclaimer(theme, l10n),
-                      const SizedBox(height: 28),
-                      _buildSosBeacon(context, theme, l10n, sosProvider),
-                      const SizedBox(height: 28),
-                      _buildHelplines(theme),
-                      const SizedBox(height: 28),
-                      Text(
-                        'Emergency Services & Triage',
-                        style: theme.textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 12),
-                      ..._buildAllServiceTiles(context, theme, riskTheme, l10n, sosProvider).map(
-                        (tile) => Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: tile,
+                // Navigation links
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _WebNavLink(
+                          label: copy.navServices,
+                          onTap: onScrollToServices,
                         ),
+                        const SizedBox(width: 6),
+                        _WebNavLink(
+                          label: copy.navHelplines,
+                          onTap: onScrollToHelplines,
+                        ),
+                        const SizedBox(width: 6),
+                        _WebNavLink(
+                          label: copy.navPrep,
+                          onTap: onScrollToPrep,
+                        ),
+                        const SizedBox(width: 6),
+                        _WebNavLink(
+                          label: l10n?.hospitalDirectoryTitle ?? 'Hospitals',
+                          onTap: () => Navigator.of(context).pushNamed(AppRoutes.hospitals),
+                        ),
+                        const SizedBox(width: 6),
+                        _WebNavLink(
+                          label: l10n?.ambulanceRequestTitle ?? 'Ambulance',
+                          onTap: () => Navigator.of(context).pushNamed(AppRoutes.ambulance),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // Utility actions
+                _WebIconButton(
+                  tooltip: 'Language / ভাষা',
+                  onTap: onToggleLocale,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.language_rounded, size: 16),
+                      const SizedBox(width: 6),
+                      Text(
+                        currentLocale.languageCode == 'bn' ? 'English' : 'বাংলা',
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
                       ),
                     ],
                   ),
                 ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActiveEmergencyBanner(
-    BuildContext context,
-    ThemeData theme,
-    AppLocalizations? l10n,
-  ) {
-    return InkWell(
-      onTap: () => Navigator.of(context).pushNamed(AppRoutes.sosActive),
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.error,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: theme.colorScheme.error.withAlpha(90),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.warning_rounded, color: Colors.white, size: 26),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n?.activeEmergencyTitle ?? 'ACTIVE EMERGENCY IN PROGRESS',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                      letterSpacing: 0.8,
-                    ),
+                const SizedBox(width: 8),
+                _WebIconButton(
+                  tooltip: 'Toggle theme',
+                  onTap: onToggleTheme,
+                  child: Icon(
+                    currentThemeMode == ThemeMode.dark
+                        ? Icons.light_mode_outlined
+                        : Icons.dark_mode_outlined,
+                    size: 19,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Tap to view live coordinates and responder tracking',
-                    style: TextStyle(
-                      color: Colors.white.withAlpha(220),
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 16),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuickProfileBar(
-    BuildContext context,
-    ThemeData theme,
-    AppLocalizations? l10n,
-    dynamic userProfile,
-    ContactsProvider contactsProvider,
-  ) {
-    return Row(
-      children: [
-        Expanded(
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const MedicalProfileScreen()),
-              );
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withAlpha(120),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: theme.colorScheme.outlineVariant.withAlpha(80),
                 ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.medical_information_outlined,
-                    size: 20,
-                    color: theme.colorScheme.primary,
+                const SizedBox(width: 14),
+
+                // Account state
+                if (auth.isAuthenticated) ...[
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () => Navigator.of(context).pushNamed(AppRoutes.profile),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest.withAlpha(90),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircleAvatar(
+                              radius: 14,
+                              backgroundColor: theme.colorScheme.primary,
+                              child: Text(
+                                (auth.userProfile?.name.isNotEmpty == true
+                                        ? auth.userProfile!.name[0]
+                                        : (auth.user?.email?[0] ?? 'U'))
+                                    .toUpperCase(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 110),
+                              child: Text(
+                                auth.userProfile?.name.isNotEmpty == true
+                                    ? auth.userProfile!.name
+                                    : (auth.user?.email ?? 'User'),
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n?.medicalId ?? 'Medical ID',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                        Text(
-                          userProfile?.bloodGroup ?? 'Set Blood Group',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      ],
+                  IconButton(
+                    tooltip: l10n?.signOut ?? 'Sign Out',
+                    icon: Icon(Icons.logout_rounded, size: 19, color: theme.colorScheme.error),
+                    onPressed: () => _confirmSignOut(context, auth, copy, l10n),
+                  ),
+                ] else ...[
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    ),
+                    onPressed: () => Navigator.of(context).pushNamed(AppRoutes.login),
+                    child: Text(
+                      l10n?.signIn ?? 'Sign In',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: () => Navigator.of(context).pushNamed(AppRoutes.register),
+                    child: Text(
+                      l10n?.signUp ?? 'Create Account',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ),
                 ],
-              ),
+
+                const SizedBox(width: 14),
+
+                // Rapid SOS CTA button
+                MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFDC2626),
+                      foregroundColor: Colors.white,
+                      elevation: 4,
+                      shadowColor: const Color(0xFFDC2626).withAlpha(120),
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    onPressed: onSosPressed,
+                    icon: const Icon(Icons.emergency_rounded, size: 20),
+                    label: Text(
+                      copy.navSos,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.8,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const EmergencyContactsScreen(),
-                ),
-              );
+      ),
+    );
+  }
+
+  void _confirmSignOut(
+    BuildContext context,
+    SafeLifeAuthProvider auth,
+    _DashboardCopy copy,
+    AppLocalizations? l10n,
+  ) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n?.logoutConfirmTitle ?? copy.signOut),
+        content: Text(l10n?.logoutConfirmMessage ?? copy.signOutConfirmation),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(l10n?.cancel ?? copy.cancel),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              auth.signOut();
             },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withAlpha(120),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: theme.colorScheme.outlineVariant.withAlpha(80),
+            child: Text(l10n?.signOut ?? copy.signOut),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WebNavLink extends StatefulWidget {
+  final String label;
+  final VoidCallback onTap;
+
+  const _WebNavLink({required this.label, required this.onTap});
+
+  @override
+  State<_WebNavLink> createState() => _WebNavLinkState();
+}
+
+class _WebNavLinkState extends State<_WebNavLink> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: widget.onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Text(
+            widget.label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: _hovered ? FontWeight.w800 : FontWeight.w600,
+              color: _hovered ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WebIconButton extends StatefulWidget {
+  final Widget child;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _WebIconButton({
+    required this.child,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  State<_WebIconButton> createState() => _WebIconButtonState();
+}
+
+class _WebIconButtonState extends State<_WebIconButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Tooltip(
+      message: widget.tooltip,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: _hovered
+                  ? theme.colorScheme.surfaceContainerHighest.withAlpha(140)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: widget.child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RESPONSIVE WEB HERO / LANDING SECTION
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _WebHeroSection extends StatelessWidget {
+  final _DashboardCopy copy;
+  final bool hasActiveEmergency;
+  final String sosLabel;
+  final bool isDesktop;
+  final int verifiedContacts;
+  final String? bloodGroup;
+  final VoidCallback onSos;
+  final VoidCallback onAmbulance;
+  final VoidCallback onProfile;
+  final VoidCallback onContacts;
+
+  const _WebHeroSection({
+    required this.copy,
+    required this.hasActiveEmergency,
+    required this.sosLabel,
+    required this.isDesktop,
+    required this.verifiedContacts,
+    required this.bloodGroup,
+    required this.onSos,
+    required this.onAmbulance,
+    required this.onProfile,
+    required this.onContacts,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final leftContent = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // Live Network Status Badge
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          decoration: BoxDecoration(
+            color: Colors.white.withAlpha(24),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: Colors.white.withAlpha(55)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF10B981),
+                  shape: BoxShape.circle,
                 ),
               ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.contacts_outlined,
-                    size: 20,
-                    color: theme.colorScheme.secondary,
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  copy.heroBadge,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.1,
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n?.emergencyContacts ?? 'Contacts',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                        Text(
-                          '${contactsProvider.verifiedContacts.length} Active',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Web Headline
+        Text(
+          copy.heroTitle,
+          style: theme.textTheme.displaySmall?.copyWith(
+            color: Colors.white,
+            fontSize: isDesktop ? 46 : 30,
+            height: 1.12,
+            fontWeight: FontWeight.w900,
+            letterSpacing: -1.2,
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Subtitle
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 580),
+          child: Text(
+            copy.heroDescription,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: Colors.white.withAlpha(230),
+              fontSize: isDesktop ? 16 : 14,
+              height: 1.6,
+            ),
+          ),
+        ),
+        const SizedBox(height: 28),
+
+        // CTAs Cluster
+        Wrap(
+          spacing: 14,
+          runSpacing: 12,
+          children: [
+            MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFDC2626),
+                  foregroundColor: Colors.white,
+                  elevation: 6,
+                  shadowColor: const Color(0xFFDC2626).withAlpha(160),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isDesktop ? 26 : 20,
+                    vertical: isDesktop ? 18 : 14,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: onSos,
+                icon: const Icon(Icons.emergency_rounded, size: 22),
+                label: Text(
+                  hasActiveEmergency ? copy.viewActiveEmergency : sosLabel,
+                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+                ),
+              ),
+            ),
+            MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.white70, width: 1.5),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isDesktop ? 22 : 18,
+                    vertical: isDesktop ? 18 : 14,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: onAmbulance,
+                icon: const Icon(Icons.airport_shuttle_rounded, size: 22),
+                label: Text(
+                  copy.requestAmbulance,
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 26),
+
+        // Trust reassurance badges
+        Wrap(
+          spacing: 16,
+          runSpacing: 8,
+          children: [
+            _HeroFeatureChip(icon: Icons.flash_on_rounded, text: copy.instantDispatch),
+            _HeroFeatureChip(icon: Icons.lock_outline_rounded, text: copy.encryptedLocation),
+            _HeroFeatureChip(icon: Icons.timer_outlined, text: copy.zeroDelay),
+          ],
+        ),
+      ],
+    );
+
+    final rightConsole = Container(
+      padding: const EdgeInsets.all(26),
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(20),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withAlpha(45)),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black26,
+            blurRadius: 26,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withAlpha(35),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.shield_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      copy.emergencyReadinessTitle,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                      ),
+                    ),
+                    Text(
+                      copy.securePrivateReady,
+                      style: TextStyle(
+                        color: Colors.white.withAlpha(200),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Medical ID card inside hero
+          _ConsoleQuickTile(
+            icon: Icons.medical_information_rounded,
+            title: copy.medicalId,
+            subtitle: bloodGroup ?? copy.addBloodGroup,
+            onTap: onProfile,
+          ),
+          const SizedBox(height: 12),
+
+          // Trusted Contacts card inside hero
+          _ConsoleQuickTile(
+            icon: Icons.people_alt_rounded,
+            title: copy.trustedContacts,
+            subtitle: copy.verifiedCount(verifiedContacts),
+            onTap: onContacts,
+          ),
+          const SizedBox(height: 18),
+
+          // Bottom quick action prompt
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.black.withAlpha(40),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.bolt_rounded, color: Color(0xFFFBBF24), size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    copy.rapidTriggerNote,
+                    style: TextStyle(
+                      color: Colors.white.withAlpha(220),
+                      fontSize: 12,
                     ),
                   ),
-                ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return Container(
+      padding: EdgeInsets.all(isDesktop ? 44 : 24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF0F172A),
+            Color(0xFF1E112A),
+            Color(0xFF380811),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: Colors.white.withAlpha(35)),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black26,
+            blurRadius: 28,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      child: isDesktop
+          ? Row(
+              children: [
+                Expanded(flex: 6, child: leftContent),
+                const SizedBox(width: 40),
+                Expanded(flex: 5, child: rightConsole),
+              ],
+            )
+          : Column(
+              children: [
+                leftContent,
+                const SizedBox(height: 28),
+                rightConsole,
+              ],
+            ),
+    );
+  }
+}
+
+class _HeroFeatureChip extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _HeroFeatureChip({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: const Color(0xFFF87171), size: 16),
+        const SizedBox(width: 6),
+        Text(
+          text,
+          style: TextStyle(
+            color: Colors.white.withAlpha(235),
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ConsoleQuickTile extends StatefulWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _ConsoleQuickTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  State<_ConsoleQuickTile> createState() => _ConsoleQuickTileState();
+}
+
+class _ConsoleQuickTileState extends State<_ConsoleQuickTile> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: InkWell(
+        onTap: widget.onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: _hovered ? Colors.white.withAlpha(45) : Colors.white.withAlpha(25),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: _hovered ? Colors.white.withAlpha(120) : Colors.white.withAlpha(40),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.white.withAlpha(30),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(widget.icon, color: Colors.white, size: 20),
               ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      widget.subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white.withAlpha(200),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                color: Colors.white.withAlpha(_hovered ? 255 : 160),
+                size: 14,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOLL-FREE DIRECT HELPLINE STRIP (Responsive 3-column / 2 / 1)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _WebHelplineStrip extends StatelessWidget {
+  final _DashboardCopy copy;
+
+  const _WebHelplineStrip({required this.copy});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final actions = [
+      _HelplineData(
+        copy.nationalEmergency,
+        EmergencyNumbers.nationalEmergency,
+        Icons.phone_in_talk_rounded,
+        theme.colorScheme.error,
+        copy.nationalEmergencyDesc,
+      ),
+      _HelplineData(
+        copy.womenAndChildren,
+        EmergencyNumbers.womenAndChildrenHelpline,
+        Icons.support_agent_rounded,
+        theme.colorScheme.primary,
+        copy.womenAndChildrenDesc,
+      ),
+      _HelplineData(
+        copy.nationalHelpDesk,
+        EmergencyNumbers.nationalHelpDesk,
+        Icons.info_outline_rounded,
+        theme.colorScheme.secondary,
+        copy.nationalHelpDeskDesc,
+      ),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.dialer_sip_rounded, size: 20, color: Color(0xFFDC2626)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                copy.quickHelplines,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth >= 900
+                ? 3
+                : constraints.maxWidth >= 560
+                    ? 2
+                    : 1;
+            const gap = 16.0;
+            final itemWidth = (constraints.maxWidth - (columns - 1) * gap) / columns;
+
+            return Wrap(
+              spacing: gap,
+              runSpacing: gap,
+              children: actions
+                  .map(
+                    (action) => SizedBox(
+                      width: itemWidth,
+                      child: _HoverHelplineCard(data: action, copy: copy),
+                    ),
+                  )
+                  .toList(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _HelplineData {
+  final String title;
+  final String number;
+  final IconData icon;
+  final Color color;
+  final String description;
+
+  const _HelplineData(this.title, this.number, this.icon, this.color, this.description);
+}
+
+class _HoverHelplineCard extends StatelessWidget {
+  final _HelplineData data;
+  final _DashboardCopy copy;
+
+  const _HoverHelplineCard({required this.data, required this.copy});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return _HoverCard(
+      hoverTranslateY: -4,
+      hoverBorderColor: data.color,
+      borderRadius: BorderRadius.circular(18),
+      padding: const EdgeInsets.all(18),
+      onTap: () async {
+        var launched = false;
+        try {
+          launched = await EmergencyNumbers.makeEmergencyCall(data.number);
+        } catch (_) {
+          launched = false;
+        }
+        if (!launched && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(copy.callFailed(data.number))),
+          );
+        }
+      },
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: data.color.withAlpha(25),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(data.icon, color: data.color, size: 24),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        data.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: data.color.withAlpha(20),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        copy.tollFree,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          color: data.color,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${copy.call} ${data.number}',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest.withAlpha(80),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.call_rounded, size: 18),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION HEADING
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SectionHeading extends StatelessWidget {
+  final String eyebrow;
+  final String title;
+  final String subtitle;
+
+  const _SectionHeading({
+    required this.eyebrow,
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.error.withAlpha(20),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            eyebrow,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: theme.colorScheme.error,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.5,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: theme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w900,
+            fontSize: 28,
+            letterSpacing: -0.6,
+          ),
+        ),
+        const SizedBox(height: 10),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.55,
+              fontSize: 15,
             ),
           ),
         ),
       ],
     );
   }
+}
 
-  Widget _buildDisclaimer(ThemeData theme, AppLocalizations? l10n) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withAlpha(120),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.shield_outlined,
-            size: 20,
-            color: theme.colorScheme.primary,
+// ─────────────────────────────────────────────────────────────────────────────
+// SERVICES GRID (Responsive 3 / 2 / 1 with Interactive Hover Lift)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ServiceData {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ServiceData({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+}
+
+class _ServicesGrid extends StatelessWidget {
+  final List<_ServiceData> services;
+
+  const _ServicesGrid({required this.services});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 1080
+            ? 3
+            : constraints.maxWidth >= 640
+                ? 2
+                : 1;
+        const gap = 18.0;
+        final itemWidth = (constraints.maxWidth - (columns - 1) * gap) / columns;
+
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: services
+              .map(
+                (service) => SizedBox(
+                  width: itemWidth,
+                  child: _HoverServiceCard(data: service),
+                ),
+              )
+              .toList(),
+        );
+      },
+    );
+  }
+}
+
+class _HoverServiceCard extends StatefulWidget {
+  final _ServiceData data;
+
+  const _HoverServiceCard({required this.data});
+
+  @override
+  State<_HoverServiceCard> createState() => _HoverServiceCardState();
+}
+
+class _HoverServiceCardState extends State<_HoverServiceCard> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        transform: Matrix4.translationValues(0, _isHovered ? -5 : 0, 0),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: _isHovered
+                ? widget.data.color.withAlpha(160)
+                : theme.colorScheme.outlineVariant.withAlpha(70),
+            width: _isHovered ? 1.6 : 1.0,
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              l10n?.disclaimer ??
-                  'SafeLife is an emergency assistance and symptom triage tool, not a diagnostic device.',
-              style: theme.textTheme.bodySmall,
+          boxShadow: _isHovered
+              ? [
+                  BoxShadow(
+                    color: widget.data.color.withAlpha(isDark ? 50 : 25),
+                    blurRadius: 22,
+                    offset: const Offset(0, 10),
+                  ),
+                ]
+              : [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(isDark ? 25 : 8),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: widget.data.onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(22),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: widget.data.color.withAlpha(_isHovered ? 40 : 22),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(
+                      widget.data.icon,
+                      color: widget.data.color,
+                      size: 26,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.data.title,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          widget.data.subtitle,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            height: 1.45,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    transform: Matrix4.translationValues(_isHovered ? 3 : 0, 0, 0),
+                    child: Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 20,
+                      color: _isHovered ? widget.data.color : theme.colorScheme.outline,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
+}
 
-  Widget _buildSosBeacon(
-    BuildContext context,
-    ThemeData theme,
-    AppLocalizations? l10n,
-    SosProvider sosProvider,
-  ) {
-    return Center(
+// ─────────────────────────────────────────────────────────────────────────────
+// PREPAREDNESS PANEL (Desktop 2-column, Mobile 1-column)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PreparednessPanel extends StatelessWidget {
+  final _DashboardCopy copy;
+  final String? bloodGroup;
+  final int verifiedContacts;
+  final bool isDesktop;
+  final VoidCallback onProfile;
+  final VoidCallback onContacts;
+  final VoidCallback onSos;
+
+  const _PreparednessPanel({
+    required this.copy,
+    required this.bloodGroup,
+    required this.verifiedContacts,
+    required this.isDesktop,
+    required this.onProfile,
+    required this.onContacts,
+    required this.onSos,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final profileLinks = LayoutBuilder(
+      builder: (context, constraints) {
+        final stack = constraints.maxWidth < 440;
+        final children = [
+          _ProfileLink(
+            icon: Icons.medical_information_outlined,
+            title: copy.medicalId,
+            value: bloodGroup ?? copy.addBloodGroup,
+            onTap: onProfile,
+          ),
+          _ProfileLink(
+            icon: Icons.contacts_outlined,
+            title: copy.trustedContacts,
+            value: copy.verifiedCount(verifiedContacts),
+            onTap: onContacts,
+          ),
+        ];
+
+        if (stack) {
+          return Column(
+            children: [children[0], const SizedBox(height: 12), children[1]],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: children[0]),
+            const SizedBox(width: 14),
+            Expanded(child: children[1]),
+          ],
+        );
+      },
+    );
+
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.error.withAlpha(20),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            copy.prepareEyebrow,
+            style: TextStyle(
+              color: theme.colorScheme.error,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.3,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          copy.prepareTitle,
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w900,
+            fontSize: isDesktop ? 26 : 22,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          copy.prepareDescription,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            height: 1.6,
+            fontSize: 14,
+          ),
+        ),
+        const SizedBox(height: 22),
+        profileLinks,
+      ],
+    );
+
+    final sosConsole = Container(
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.error.withAlpha(14),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: theme.colorScheme.error.withAlpha(45)),
+      ),
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Semantics(
-            button: true,
-            label: l10n?.sos ?? 'SOS',
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
             child: Material(
               color: theme.colorScheme.error,
-              elevation: 6,
+              elevation: 8,
+              shadowColor: theme.colorScheme.error.withAlpha(160),
               shape: const CircleBorder(),
               child: InkWell(
                 customBorder: const CircleBorder(),
-                onTap: () {
-                  if (sosProvider.hasActiveEmergency) {
-                    Navigator.of(context).pushNamed(AppRoutes.sosActive);
-                  } else {
-                    _showSosCountdownDialog(context);
-                  }
-                },
-                child: Container(
-                  width: 170,
-                  height: 170,
-                  alignment: Alignment.center,
+                onTap: onSos,
+                child: SizedBox(
+                  width: 156,
+                  height: 156,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const Icon(
-                        Icons.emergency_rounded,
-                        size: 52,
+                        Icons.crisis_alert_rounded,
                         color: Colors.white,
+                        size: 46,
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 6),
                       Text(
-                        l10n?.sos ?? 'SOS',
-                        style: theme.textTheme.headlineMedium?.copyWith(
+                        copy.sosNow,
+                        style: const TextStyle(
                           color: Colors.white,
+                          fontSize: 26,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 2,
                         ),
@@ -610,283 +1894,1056 @@ class DashboardScreen extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           Text(
-            'Tap to trigger emergency alert',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+            copy.tapForEmergency,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
           ),
         ],
       ),
     );
-  }
 
-  Widget _buildHelplines(ThemeData theme) {
-    return Row(
-      children: [
-        Expanded(
-          child: OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: theme.colorScheme.error,
-              side: BorderSide(color: theme.colorScheme.error),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-            ),
-            onPressed: () => EmergencyNumbers.makeEmergencyCall(
-              EmergencyNumbers.nationalEmergency,
-            ),
-            icon: const Icon(Icons.phone_in_talk_rounded),
-            label: const Text(
-              '999 (National)',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
+    return Container(
+      padding: EdgeInsets.all(isDesktop ? 36 : 24),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withAlpha(90),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: theme.colorScheme.primary,
-              side: BorderSide(color: theme.colorScheme.primary),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-            ),
-            onPressed: () => EmergencyNumbers.makeEmergencyCall(
-              EmergencyNumbers.womenAndChildrenHelpline,
-            ),
-            icon: const Icon(Icons.support_agent_rounded),
-            label: const Text(
-              '109 (Helpline)',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  List<Widget> _buildAllServiceTiles(
-    BuildContext context,
-    ThemeData theme,
-    RiskLevelTheme riskTheme,
-    AppLocalizations? l10n,
-    SosProvider sosProvider,
-  ) {
-    return [
-      _ServiceTile(
-        title: l10n?.womenSafety ?? 'Women Safety',
-        subtitle: 'Discreet alert, live tracking, trusted contacts',
-        icon: Icons.security_rounded,
-        iconColor: theme.colorScheme.primary,
-        onTap: () {
-          if (sosProvider.hasActiveEmergency) {
-            Navigator.of(context).pushNamed(AppRoutes.sosActive);
-          } else {
-            _showSosCountdownDialog(context);
-          }
-        },
-      ),
-      _ServiceTile(
-        title: l10n?.cardiacEmergency ?? 'Heart Attack / Cardiac',
-        subtitle: 'Acute symptom check & rule-based triage score',
-        icon: Icons.favorite_rounded,
-        iconColor: riskTheme.getColor(RiskLevel.high),
-        onTap: () => Navigator.of(context).pushNamed(AppRoutes.heartTriage),
-      ),
-      _ServiceTile(
-        title: l10n?.strokeEmergency ?? 'Stroke (FAST)',
-        subtitle: 'Face, Arm, Speech, Time + Bystander mode',
-        icon: Icons.medical_services_rounded,
-        iconColor: riskTheme.getColor(RiskLevel.critical),
-        onTap: () => Navigator.of(context).pushNamed(AppRoutes.strokeTriage),
-      ),
-      _ServiceTile(
-        title: l10n?.hospitalDirectoryTitle ?? 'Emergency Hospitals',
-        subtitle: 'Nearby hospitals with Cath Lab, Stroke tPA, & 24/7 ER',
-        icon: Icons.local_hospital_rounded,
-        iconColor: theme.colorScheme.primary,
-        onTap: () => Navigator.of(context).pushNamed(AppRoutes.hospitals),
-      ),
-      _ServiceTile(
-        title: l10n?.ambulanceRequestTitle ?? 'Request Ambulance',
-        subtitle: 'Verified emergency ambulance dispatch with live tracking',
-        icon: Icons.airport_shuttle_rounded,
-        iconColor: theme.colorScheme.error,
-        onTap: () => Navigator.of(context).pushNamed(AppRoutes.ambulance),
-      ),
-      _ServiceTile(
-        title: l10n?.safetyTimerTitle ?? 'Safety Timer (Walk With Me)',
-        subtitle: 'Arrival countdown with automatic SOS escalation',
-        icon: Icons.timer_rounded,
-        iconColor: Colors.amber.shade800,
-        onTap: () => Navigator.of(context).pushNamed(AppRoutes.safetyTimer),
-      ),
-      _ServiceTile(
-        title: l10n?.incidentReportTitle ?? 'Report Safety Incident',
-        subtitle: 'Confidential harassment and stalking telemetry report',
-        icon: Icons.report_problem_outlined,
-        iconColor: Colors.deepOrange.shade700,
-        onTap: () => Navigator.of(context).pushNamed(AppRoutes.incidentReport),
-      ),
-      _ServiceTile(
-        title: l10n?.emergencyHistoryTitle ?? 'Emergency History',
-        subtitle: 'View historical alerts, triage scores, and logs',
-        icon: Icons.history_rounded,
-        iconColor: Colors.blueGrey.shade700,
-        onTap: () => Navigator.of(context).pushNamed(AppRoutes.history),
-      ),
-      _ServiceTile(
-        title: l10n?.adminPortalTitle ?? 'Admin Analytics Portal',
-        subtitle: 'Platform user KPIs, incident hotspots, and thesis evaluation',
-        icon: Icons.analytics_outlined,
-        iconColor: Colors.indigo.shade700,
-        onTap: () => Navigator.of(context).pushNamed(AppRoutes.admin),
-      ),
-      _ServiceTile(
-        title: l10n?.responderPanelTitle ?? 'Responder Command Panel',
-        subtitle: 'Live emergency dispatch queue and hospital triage routing',
-        icon: Icons.dashboard_customize_outlined,
-        iconColor: Colors.teal.shade700,
-        onTap: () => Navigator.of(context).pushNamed(AppRoutes.responder),
-      ),
-    ];
-  }
-
-  void _confirmLogout(BuildContext context, SafeLifeAuthProvider auth) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Sign Out'),
-        content: const Text('Are you sure you want to sign out of SafeLife?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              auth.signOut();
-            },
-            child: const Text('Sign Out'),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(theme.brightness == Brightness.dark ? 30 : 10),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-    );
-  }
-
-  void _showSosCountdownDialog(BuildContext context) {
-    final auth = context.read<SafeLifeAuthProvider>();
-    final contacts = context.read<ContactsProvider>().contacts;
-    final sos = context.read<SosProvider>();
-
-    final userId = auth.user?.uid ?? '';
-    final userName = auth.userProfile?.name ?? auth.user?.displayName ?? 'SafeLife User';
-    final userPhone = auth.userProfile?.phone ?? auth.user?.phoneNumber ?? '';
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogCtx) {
-        return _CountdownDialog(
-          userId: userId,
-          userName: userName,
-          userPhone: userPhone,
-          contacts: contacts,
-          language: currentLocale.languageCode,
-          sosProvider: sos,
-          onDispatched: () {
-            Navigator.of(dialogCtx).pop();
-            Navigator.of(context).pushNamed(AppRoutes.sosActive);
-          },
-        );
-      },
+      child: isDesktop
+          ? Row(
+              children: [
+                Expanded(flex: 6, child: content),
+                const SizedBox(width: 36),
+                Expanded(flex: 4, child: sosConsole),
+              ],
+            )
+          : Column(
+              children: [
+                content,
+                const SizedBox(height: 26),
+                sosConsole,
+              ],
+            ),
     );
   }
 }
 
-class _ServiceTile extends StatelessWidget {
-  final String title;
-  final String subtitle;
+class _ProfileLink extends StatelessWidget {
   final IconData icon;
-  final Color iconColor;
+  final String title;
+  final String value;
   final VoidCallback onTap;
 
-  const _ServiceTile({
-    required this.title,
-    required this.subtitle,
+  const _ProfileLink({
     required this.icon,
-    required this.iconColor,
+    required this.title,
+    required this.value,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card(
-      elevation: 0.5,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(
-          color: theme.colorScheme.outlineVariant.withAlpha(50),
+    return _HoverCard(
+      hoverTranslateY: -3,
+      padding: const EdgeInsets.all(16),
+      borderRadius: BorderRadius.circular(16),
+      color: theme.colorScheme.surfaceContainerHighest.withAlpha(100),
+      onTap: onTap,
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withAlpha(20),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: theme.colorScheme.primary, size: 22),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.edit_outlined, size: 16),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TRUST & IMPACT METRICS BAND
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _TrustStats extends StatelessWidget {
+  final _DashboardCopy copy;
+
+  const _TrustStats({required this.copy});
+
+  @override
+  Widget build(BuildContext context) {
+    final stats = [
+      ('24/7', copy.emergencyAccess),
+      ('3', copy.nationalHelplines),
+      ('10+', copy.integratedServices),
+      ('2', copy.supportedLanguages),
+    ];
+    final error = Theme.of(context).colorScheme.error;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 26),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [error, const Color(0xFF7A0C13)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: error.withAlpha(90),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final columns = constraints.maxWidth >= 720 ? 4 : 2;
+          final itemWidth = constraints.maxWidth / columns;
+
+          return Wrap(
+            runSpacing: 24,
+            children: stats
+                .map(
+                  (stat) => SizedBox(
+                    width: itemWidth,
+                    child: Column(
+                      children: [
+                        Text(
+                          stat.$1,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 32,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          stat.$2,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white.withAlpha(225),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MEDICAL & CLINICAL DISCLAIMER
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _Disclaimer extends StatelessWidget {
+  final String? text;
+
+  const _Disclaimer({this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withAlpha(100),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withAlpha(60),
         ),
       ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: iconColor.withAlpha(25),
-                child: Icon(icon, color: iconColor, size: 20),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.shield_outlined, color: theme.colorScheme.primary, size: 22),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              text ??
+                  'SafeLife supports emergency assistance and symptom triage. It does not replace professional medical diagnosis, emergency medical personnel, or police dispatch.',
+              style: theme.textTheme.bodySmall?.copyWith(height: 1.5, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPREHENSIVE RESPONSIVE WEBSITE FOOTER
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _WebFooter extends StatelessWidget {
+  final _DashboardCopy copy;
+  final AppLocalizations? l10n;
+  final bool isDesktop;
+  final SafeLifeAuthProvider auth;
+  final VoidCallback onToggleLocale;
+  final VoidCallback onToggleTheme;
+  final ThemeMode currentThemeMode;
+
+  const _WebFooter({
+    required this.copy,
+    required this.l10n,
+    required this.isDesktop,
+    required this.auth,
+    required this.onToggleLocale,
+    required this.onToggleTheme,
+    required this.currentThemeMode,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final brandCol = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.error,
+                borderRadius: BorderRadius.circular(9),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
+              child: const Icon(
+                Icons.health_and_safety_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'SafeLife Platform',
+                style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 320),
+          child: Text(
+            copy.footerDesc,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.55,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.error.withAlpha(20),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.call_rounded, size: 16, color: theme.colorScheme.error),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  copy.footerEmergencyNote,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: theme.colorScheme.error,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    final servicesCol = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          copy.footerColServices,
+          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+        ),
+        const SizedBox(height: 12),
+        _FooterLink(
+          label: copy.isBangla ? 'নারী সুরক্ষা নেটওয়ার্ক' : 'Women Protection & Care',
+          onTap: () => Navigator.of(context).pushNamed(AppRoutes.sosActive),
+        ),
+        _FooterLink(
+          label: copy.isBangla ? 'কার্ডিয়াক জরুরি সেবা' : 'Cardiac Emergency Care',
+          onTap: () => Navigator.of(context).pushNamed(AppRoutes.heartTriage),
+        ),
+        _FooterLink(
+          label: copy.isBangla ? 'স্ট্রোক কেয়ার ও পরামর্শ' : 'Stroke Emergency Care (FAST)',
+          onTap: () => Navigator.of(context).pushNamed(AppRoutes.strokeTriage),
+        ),
+        _FooterLink(
+          label: l10n?.ambulanceRequestTitle ?? 'Ambulance Request',
+          onTap: () => Navigator.of(context).pushNamed(AppRoutes.ambulance),
+        ),
+        _FooterLink(
+          label: l10n?.hospitalDirectoryTitle ?? 'Emergency Hospitals',
+          onTap: () => Navigator.of(context).pushNamed(AppRoutes.hospitals),
+        ),
+      ],
+    );
+
+    final toolsCol = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          copy.footerColTools,
+          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+        ),
+        const SizedBox(height: 12),
+        _FooterLink(
+          label: l10n?.safetyTimerTitle ?? 'Safety Timer',
+          onTap: () => Navigator.of(context).pushNamed(AppRoutes.safetyTimer),
+        ),
+        _FooterLink(
+          label: l10n?.incidentReportTitle ?? 'Report Safety Incident',
+          onTap: () => Navigator.of(context).pushNamed(AppRoutes.incidentReport),
+        ),
+        _FooterLink(
+          label: l10n?.medicalProfile ?? 'Medical ID Profile',
+          onTap: () => Navigator.of(context).pushNamed(AppRoutes.profile),
+        ),
+        _FooterLink(
+          label: l10n?.emergencyContacts ?? 'Trusted Contacts',
+          onTap: () => Navigator.of(context).pushNamed(AppRoutes.contacts),
+        ),
+        _FooterLink(
+          label: l10n?.emergencyHistoryTitle ?? 'Emergency History',
+          onTap: () => Navigator.of(context).pushNamed(AppRoutes.history),
+        ),
+      ],
+    );
+
+    final controlsCol = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          copy.footerColAccess,
+          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+        ),
+        const SizedBox(height: 12),
+        _FooterLink(
+          label: 'Language / ভাষা (${copy.isBangla ? 'English' : 'বাংলা'})',
+          onTap: onToggleLocale,
+        ),
+        _FooterLink(
+          label: '${copy.appearance}: ${currentThemeMode == ThemeMode.dark ? copy.light : copy.dark}',
+          onTap: onToggleTheme,
+        ),
+        if (auth.canAccessResponder)
+          _FooterLink(
+            label: l10n?.responderPanelTitle ?? 'Responder Panel',
+            onTap: () => Navigator.of(context).pushNamed(AppRoutes.responder),
+          ),
+        if (auth.canAccessAdmin)
+          _FooterLink(
+            label: l10n?.adminPortalTitle ?? 'Admin Analytics',
+            onTap: () => Navigator.of(context).pushNamed(AppRoutes.admin),
+          ),
+      ],
+    );
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isDesktop ? 40 : 20,
+        vertical: 36,
+      ),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF131722) : const Color(0xFFF1F3F5),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withAlpha(70),
+        ),
+      ),
+      child: Column(
+        children: [
+          isDesktop
+              ? Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Expanded(flex: 4, child: brandCol),
+                    const SizedBox(width: 28),
+                    Expanded(flex: 3, child: servicesCol),
+                    const SizedBox(width: 20),
+                    Expanded(flex: 3, child: toolsCol),
+                    const SizedBox(width: 20),
+                    Expanded(flex: 3, child: controlsCol),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    brandCol,
+                    const SizedBox(height: 28),
+                    servicesCol,
+                    const SizedBox(height: 24),
+                    toolsCol,
+                    const SizedBox(height: 24),
+                    controlsCol,
+                  ],
+                ),
+          const SizedBox(height: 36),
+          Divider(color: theme.colorScheme.outlineVariant.withAlpha(70)),
+          const SizedBox(height: 18),
+          if (isDesktop)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    copy.footerRights,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontSize: 12,
-                        color: theme.colorScheme.onSurfaceVariant,
+                    const Icon(Icons.lock_rounded, size: 14),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        copy.securePrivateReady,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(width: 6),
-              Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 14,
-                color: theme.colorScheme.outline,
-              ),
-            ],
+              ],
+            )
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  copy.footerRights,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.lock_rounded, size: 14),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        copy.securePrivateReady,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FooterLink extends StatefulWidget {
+  final String label;
+  final VoidCallback onTap;
+
+  const _FooterLink({required this.label, required this.onTap});
+
+  @override
+  State<_FooterLink> createState() => _FooterLinkState();
+}
+
+class _FooterLinkState extends State<_FooterLink> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: InkWell(
+          onTap: widget.onTap,
+          borderRadius: BorderRadius.circular(6),
+          child: Text(
+            widget.label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: _hovered ? FontWeight.w800 : FontWeight.w500,
+              color: _hovered
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
       ),
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ACTIVE EMERGENCY BANNER
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ActiveEmergencyBanner extends StatelessWidget {
+  final VoidCallback onTap;
+  final _DashboardCopy copy;
+
+  const _ActiveEmergencyBanner({required this.onTap, required this.copy});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return _HoverCard(
+      hoverTranslateY: -3,
+      color: theme.colorScheme.error,
+      borderRadius: BorderRadius.circular(18),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      onTap: onTap,
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(35),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.warning_rounded, color: Colors.white, size: 24),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  copy.activeEmergency,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.6,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  copy.activeEmergencyDescription,
+                  style: TextStyle(color: Colors.white.withAlpha(225), fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          const Icon(
+            Icons.arrow_forward_ios_rounded,
+            color: Colors.white,
+            size: 16,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MOBILE NAVIGATION DRAWER
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _NavigationDrawer extends StatelessWidget {
+  final SafeLifeAuthProvider auth;
+  final ContactsProvider contacts;
+  final Locale currentLocale;
+  final ThemeMode currentThemeMode;
+  final VoidCallback onToggleLocale;
+  final VoidCallback onToggleTheme;
+  final _DashboardCopy copy;
+
+  const _NavigationDrawer({
+    required this.auth,
+    required this.contacts,
+    required this.currentLocale,
+    required this.currentThemeMode,
+    required this.onToggleLocale,
+    required this.onToggleTheme,
+    required this.copy,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final profile = auth.userProfile;
+
+    void open(String route) {
+      Navigator.of(context).pop();
+      Navigator.of(context).pushNamed(route);
+    }
+
+    Widget item(IconData icon, String title, String route) {
+      return ListTile(
+        leading: Icon(icon, color: theme.colorScheme.primary),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => open(route),
+      );
+    }
+
+    return Drawer(
+      child: SafeArea(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [theme.colorScheme.error, const Color(0xFF861017)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const CircleAvatar(
+                        radius: 24,
+                        backgroundColor: Colors.white,
+                        child: Icon(
+                          Icons.health_and_safety_rounded,
+                          color: Color(0xFFC51620),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              copy.navigation,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.1,
+                              ),
+                            ),
+                            Text(
+                              profile?.name.isNotEmpty == true
+                                  ? profile!.name
+                                  : (auth.user?.email ?? 'SafeLife User'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    '${profile?.bloodGroup ?? copy.bloodGroupNotSet}  •  ${copy.verifiedContactCount(contacts.verifiedContacts.length)}',
+                    style: TextStyle(color: Colors.white.withAlpha(225)),
+                  ),
+                ],
+              ),
+            ),
+            item(
+              Icons.badge_outlined,
+              l10n?.medicalProfile ?? 'Medical Profile',
+              AppRoutes.profile,
+            ),
+            item(
+              Icons.people_alt_outlined,
+              l10n?.emergencyContacts ?? 'Emergency Contacts',
+              AppRoutes.contacts,
+            ),
+            item(
+              Icons.report_problem_outlined,
+              l10n?.incidentReportTitle ?? 'Report Safety Incident',
+              AppRoutes.incidentReport,
+            ),
+            item(
+              Icons.history_rounded,
+              l10n?.emergencyHistoryTitle ?? 'Emergency History',
+              AppRoutes.history,
+            ),
+            item(
+              Icons.local_hospital_outlined,
+              l10n?.hospitalDirectoryTitle ?? 'Emergency Hospitals',
+              AppRoutes.hospitals,
+            ),
+            item(
+              Icons.airport_shuttle_outlined,
+              l10n?.ambulanceRequestTitle ?? 'Request Ambulance',
+              AppRoutes.ambulance,
+            ),
+            item(
+              Icons.timer_outlined,
+              l10n?.safetyTimerTitle ?? 'Safety Timer',
+              AppRoutes.safetyTimer,
+            ),
+            item(
+              Icons.settings_outlined,
+              l10n?.settingsTitle ?? 'Settings & Preferences',
+              AppRoutes.settings,
+            ),
+            if (auth.canAccessResponder) ...[
+              const Divider(height: 24),
+              item(
+                Icons.dashboard_customize_outlined,
+                l10n?.responderPanelTitle ?? 'Responder Panel',
+                AppRoutes.responder,
+              ),
+            ],
+            if (auth.canAccessAdmin)
+              item(
+                Icons.analytics_outlined,
+                l10n?.adminPortalTitle ?? 'Admin Analytics',
+                AppRoutes.admin,
+              ),
+            if (auth.canAccessResponder) const Divider(height: 24),
+            if (!auth.isAuthenticated) ...[
+              item(
+                Icons.login_rounded,
+                l10n?.signIn ?? 'Sign In',
+                AppRoutes.login,
+              ),
+              item(
+                Icons.person_add_alt_1_rounded,
+                l10n?.signUp ?? 'Create Account',
+                AppRoutes.register,
+              ),
+              const Divider(height: 24),
+            ],
+            ListTile(
+              leading: const Icon(Icons.language_rounded),
+              title: const Text('Language / ভাষা'),
+              trailing: Text(
+                currentLocale.languageCode == 'bn' ? 'বাংলা' : 'English',
+              ),
+              onTap: onToggleLocale,
+            ),
+            ListTile(
+              leading: Icon(
+                currentThemeMode == ThemeMode.dark
+                    ? Icons.light_mode_outlined
+                    : Icons.dark_mode_outlined,
+              ),
+              title: Text(copy.appearance),
+              trailing: Text(
+                currentThemeMode == ThemeMode.dark ? copy.dark : copy.light,
+              ),
+              onTap: onToggleTheme,
+            ),
+            if (auth.isAuthenticated) ...[
+              const Divider(height: 24),
+              ListTile(
+                leading: Icon(
+                  Icons.logout_rounded,
+                  color: theme.colorScheme.error,
+                ),
+                title: Text(
+                  l10n?.signOut ?? 'Sign Out',
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  showDialog<void>(
+                    context: context,
+                    builder: (dialogContext) => AlertDialog(
+                      title: Text(l10n?.logoutConfirmTitle ?? copy.signOut),
+                      content: Text(
+                        l10n?.logoutConfirmMessage ?? copy.signOutConfirmation,
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(dialogContext).pop(),
+                          child: Text(l10n?.cancel ?? copy.cancel),
+                        ),
+                        FilledButton(
+                          onPressed: () {
+                            Navigator.of(dialogContext).pop();
+                            auth.signOut();
+                          },
+                          child: Text(l10n?.signOut ?? copy.signOut),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DASHBOARD COPY (Bangla / English)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _DashboardCopy {
+  final bool isBangla;
+
+  const _DashboardCopy(this.isBangla);
+
+  String _text(String english, String bangla) => isBangla ? bangla : english;
+
+  String get navigation => _text('Navigation', 'নেভিগেশন');
+  String get bloodGroupNotSet =>
+      _text('Blood group not set', 'রক্তের গ্রুপ যোগ করা হয়নি');
+  String verifiedContactCount(int count) =>
+      _text('$count verified contacts', '$count জন যাচাইকৃত যোগাযোগ');
+  String get appearance => _text('Appearance', 'থিম ও প্রদর্শন');
+  String get dark => _text('Dark', 'ডার্ক');
+  String get light => _text('Light', 'লাইট');
+  String get signOut => _text('Sign Out', 'সাইন আউট');
+  String get signOutConfirmation => _text(
+    'Are you sure you want to sign out?',
+    'আপনি কি নিশ্চিতভাবে সাইন আউট করতে চান?',
+  );
+  String get cancel => _text('Cancel', 'বাতিল');
+
+  String get heroBadge =>
+      _text('24/7 EMERGENCY RESPONSE', '২৪/৭ জরুরি সহায়তা নেটওয়ার্ক');
+  String get heroTitle => _text(
+    'Fast help when\nevery second matters.',
+    'প্রতিটি মুহূর্তে\nদ্রুত ও নির্ভরযোগ্য সহায়তা।',
+  );
+  String get heroDescription => _text(
+    'Women’s safety, clinical triage, ambulance dispatch, and trusted contacts in one calm, reliable experience.',
+    'নারীর নিরাপত্তা, জরুরি স্বাস্থ্য যাচাই, অ্যাম্বুলেন্স ও বিশ্বস্ত যোগাযোগ—সব এক নির্ভরযোগ্য অভিজ্ঞতায়।',
+  );
+  String get viewActiveEmergency =>
+      _text('View active emergency', 'সক্রিয় জরুরি অবস্থা দেখুন');
+  String get requestAmbulance =>
+      _text('Request ambulance', 'অ্যাম্বুলেন্স অনুরোধ করুন');
+  String get securePrivateReady =>
+      _text('Secure • Private • Ready', 'নিরাপদ • গোপনীয় • প্রস্তুত');
+
+  String get sectionEyebrow =>
+      _text('CARE THAT MOVES WITH YOU', 'আপনার সঙ্গে থাকা জরুরি সেবা');
+  String get sectionTitle => _text(
+    'Emergency services, all in one place',
+    'সব জরুরি সেবা একই জায়গায়',
+  );
+  String get sectionSubtitle => _text(
+    'Immediate safety support, medical triage, dispatch, and follow-up tools designed for every screen.',
+    'তাৎক্ষণিক নিরাপত্তা সহায়তা, স্বাস্থ্য যাচাই, প্রেরণ ও পরবর্তী সেবা—সব পর্দার জন্য তৈরি।',
+  );
+
+  String get womenSafetyDescription => _text(
+    'Discreet SOS, trusted contacts, and live location support',
+    'গোপন এসওএস, বিশ্বস্ত যোগাযোগ ও লাইভ অবস্থান সহায়তা',
+  );
+  String get cardiacDescription => _text(
+    'Guided symptom check and risk-based emergency action',
+    'নির্দেশিত উপসর্গ যাচাই ও ঝুঁকিভিত্তিক জরুরি পদক্ষেপ',
+  );
+  String get strokeDescription => _text(
+    'Face, arm, speech, and onset-time assessment',
+    'মুখ, হাত, কথা ও উপসর্গ শুরুর সময় যাচাই',
+  );
+  String get ambulanceDescription => _text(
+    'Emergency dispatch request with progress tracking',
+    'অগ্রগতি পর্যবেক্ষণসহ জরুরি অ্যাম্বুলেন্স অনুরোধ',
+  );
+  String get hospitalDescription => _text(
+    'Nearby cardiac, stroke, ICU, and 24/7 facilities',
+    'নিকটস্থ হৃদরোগ, স্ট্রোক, আইসিইউ ও ২৪/৭ হাসপাতাল',
+  );
+  String get timerDescription => _text(
+    'Timed journey check-in with automatic SOS escalation',
+    'সময়ভিত্তিক যাত্রা চেক-ইন ও স্বয়ংক্রিয় এসওএস',
+  );
+  String get reportDescription => _text(
+    'Confidential harassment, stalking, or threat reporting',
+    'হয়রানি, অনুসরণ বা হুমকির গোপনীয় প্রতিবেদন',
+  );
+  String get historyDescription => _text(
+    'Review previous alerts, assessments, and activity',
+    'আগের সতর্কতা, মূল্যায়ন ও কার্যক্রম দেখুন',
+  );
+  String get responderDescription => _text(
+    'Prioritized emergency queue and response workflow',
+    'অগ্রাধিকারভিত্তিক জরুরি সারি ও সাড়া দেওয়ার কার্যক্রম',
+  );
+  String get adminDescription => _text(
+    'Platform metrics, incident hotspots, and evaluation data',
+    'প্ল্যাটফর্ম পরিসংখ্যান, ঘটনা হটস্পট ও মূল্যায়ন তথ্য',
+  );
+
+  String get nationalEmergency =>
+      _text('National Emergency', 'জাতীয় জরুরি সেবা');
+  String get nationalEmergencyDesc =>
+      _text('Police, Fire & Ambulance', 'পুলিশ, ফায়ার ও অ্যাম্বুলেন্স');
+  String get womenAndChildren =>
+      _text('Women & Children', 'নারী ও শিশু সহায়তা');
+  String get womenAndChildrenDesc =>
+      _text('Helpline for violence & harassment', 'সহিংসতা ও হয়রানি প্রতিরোধ হেল্পলাইন');
+  String get nationalHelpDesk => _text('National Help Desk', 'জাতীয় তথ্যসেবা');
+  String get nationalHelpDeskDesc =>
+      _text('Government services & info desk', 'সরকারি সেবা ও জরুরি তথ্য ডেস্ক');
+
+  String get call => _text('Call', 'কল করুন');
+  String get tollFree => _text('Toll-Free', 'টোল-ফ্রি');
+  String callFailed(String number) => _text(
+    'Could not open the phone app. Please call $number manually.',
+    'ফোন অ্যাপ খোলা যায়নি। অনুগ্রহ করে নিজে $number নম্বরে কল করুন।',
+  );
+
+  String get prepareEyebrow =>
+      _text('PREPARE BEFORE AN EMERGENCY', 'জরুরি অবস্থার আগেই প্রস্তুত থাকুন');
+  String get prepareTitle => _text(
+    'Your emergency profile can save critical minutes.',
+    'আপনার জরুরি প্রোফাইল মূল্যবান সময় বাঁচাতে পারে।',
+  );
+  String get prepareDescription => _text(
+    'Keep your blood group, conditions, medication, and trusted contacts ready for responders. Your information remains under your control.',
+    'রক্তের গ্রুপ, রোগ, ওষুধ ও বিশ্বস্ত যোগাযোগের তথ্য প্রস্তুত রাখুন। আপনার তথ্যের নিয়ন্ত্রণ আপনার কাছেই থাকে।',
+  );
+  String get medicalId => _text('Medical ID', 'মেডিকেল আইডি');
+  String get addBloodGroup => _text('Add blood group', 'রক্তের গ্রুপ যোগ করুন');
+  String get trustedContacts => _text('Trusted contacts', 'বিশ্বস্ত যোগাযোগ');
+  String verifiedCount(int count) =>
+      _text('$count verified', '$count জন যাচাইকৃত');
+  String get sosNow => _text('SOS NOW', 'এখনই এসওএস');
+  String get tapForEmergency =>
+      _text('Tap for emergency alert', 'জরুরি সতর্কতার জন্য চাপুন');
+
+  String get emergencyAccess => _text('Emergency access', 'জরুরি সেবা');
+  String get nationalHelplines =>
+      _text('National helplines', 'জাতীয় হেল্পলাইন');
+  String get integratedServices => _text('Integrated services', 'সমন্বিত সেবা');
+  String get supportedLanguages => _text('Supported languages', 'সমর্থিত ভাষা');
+  String get footerTitle =>
+      _text('SafeLife emergency support', 'সেফলাইফ জরুরি সহায়তা');
+  String get footerSubtitle => _text(
+    'Women’s safety and emergency medical support',
+    'নারীর নিরাপত্তা ও জরুরি চিকিৎসা সহায়তা',
+  );
+  String get activeEmergency =>
+      _text('ACTIVE EMERGENCY IN PROGRESS', 'সক্রিয় জরুরি সহায়তা চলছে');
+  String get activeEmergencyDescription => _text(
+    'Tap to view live coordinates and responder tracking',
+    'লাইভ অবস্থান ও সহায়তাকারীর অগ্রগতি দেখতে চাপুন',
+  );
+
+  // Web additions
+  String get navServices => _text('Services', 'সেবাসমূহ');
+  String get navHelplines => _text('Helplines', 'হেল্পলাইন');
+  String get navPrep => _text('Preparedness', 'জরুরি প্রস্তুতি');
+  String get navSos => _text('SOS ALERT', 'দ্রুত এসওএস');
+  String get systemReady => _text('24/7 ACTIVE', '২৪/৭ সক্রিয়');
+  String get instantDispatch => _text('Instant Dispatch', 'তাৎক্ষণিক প্রেরণ');
+  String get encryptedLocation => _text('Encrypted GPS', 'এনক্রিপ্টেড জিপিএস');
+  String get zeroDelay => _text('Zero Delay', 'দ্রুত ট্রায়াজ');
+  String get callHotline => _text('Call 999', '৯৯৯-এ কল করুন');
+  String get quickHelplines => _text('DIRECT TOLL-FREE EMERGENCY HELPLINES', 'সরাসরি জাতীয় জরুরি হটলাইন (টোল-ফ্রি)');
+  String get emergencyReadinessTitle => _text('Emergency Readiness', 'জরুরি প্রস্তুতি ড্যাশবোর্ড');
+  String get rapidTriggerNote => _text('One touch transmits live GPS & medical ID to guardians', 'এক চাপে অভিভাবক ও উদ্ধারকারীর কাছে লাইভ জিপিএস ও মেডিকেল আইডি পৌঁছায়');
+  String get footerColServices => _text('Emergency & Triage', 'জরুরি ও স্বাস্থ্য সেবা');
+  String get footerColTools => _text('Safety Tools', 'নিরাপত্তা সুবিধাসমূহ');
+  String get footerColAccess => _text('System & Access', 'সিস্টেম ও এক্সেস');
+  String get footerDesc => _text(
+    'SafeLife is an integrated safety and medical emergency response network designed to safeguard lives with zero-latency response.',
+    'সেফলাইফ একটি সমন্বিত নারী নিরাপত্তা ও জরুরি চিকিৎসা সাড়া নেটওয়ার্ক, যা দ্রুততম সময়ে মানুষের জীবন বাঁচাতে নিবেদিত।',
+  );
+  String get footerEmergencyNote => _text(
+    'Direct Hotline: Dial 999 for National Emergency Dispatch',
+    'সরাসরি হটলাইন: জাতীয় জরুরি সেবার জন্য ৯৯৯ ডায়াল করুন',
+  );
+  String get footerRights => _text(
+    '© 2026 SafeLife Emergency Response Network. All rights reserved.',
+    '© ২০২৬ সেফলাইফ জরুরি সাড়া নেটওয়ার্ক। সর্বস্বত্ব সংরক্ষিত।',
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COUNTDOWN DIALOG (Preserved 100% of state, timer, and dispatch logic)
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _CountdownDialog extends StatefulWidget {
   final String userId;
@@ -915,34 +2972,30 @@ class _CountdownDialogState extends State<_CountdownDialog> {
   int _remaining = AlertConstants.defaultCountdownSeconds;
   Timer? _timer;
   bool _cancelled = false;
+  bool _isDispatching = false;
+  String? _dispatchError;
 
   @override
   void initState() {
     super.initState();
-    _startCountdown();
-  }
-
-  void _startCountdown() {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_cancelled || !mounted) {
-        timer.cancel();
-        return;
-      }
+      if (!mounted || _cancelled) return;
       if (_remaining > 1) {
-        setState(() {
-          _remaining--;
-        });
+        setState(() => _remaining--);
       } else {
-        timer.cancel();
-        _dispatchNow();
+        unawaited(_dispatchNow());
       }
     });
   }
 
-  void _dispatchNow() {
-    if (_cancelled) return;
+  Future<void> _dispatchNow() async {
+    if (_cancelled || _isDispatching) return;
     _timer?.cancel();
-    widget.sosProvider.dispatchEmergency(
+    setState(() {
+      _isDispatching = true;
+      _dispatchError = null;
+    });
+    final emergency = await widget.sosProvider.dispatchEmergency(
       userId: widget.userId,
       userName: widget.userName,
       userPhone: widget.userPhone,
@@ -950,7 +3003,20 @@ class _CountdownDialogState extends State<_CountdownDialog> {
       language: widget.language,
       type: EmergencyType.safety,
     );
-    widget.onDispatched();
+    if (!mounted) return;
+    if (emergency != null) {
+      _cancelled = true;
+      widget.onDispatched();
+      return;
+    }
+    setState(() {
+      _isDispatching = false;
+      _dispatchError =
+          widget.sosProvider.errorMessage ??
+          (widget.language == 'bn'
+              ? 'জরুরি সতর্কতা পাঠানো যায়নি। অনুগ্রহ করে ৯৯৯ নম্বরে কল করে আবার চেষ্টা করুন।'
+              : 'Emergency alert could not be sent. Please call 999 and try again.');
+    });
   }
 
   @override
@@ -963,8 +3029,8 @@ class _CountdownDialogState extends State<_CountdownDialog> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-
     return AlertDialog(
+      scrollable: true,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: Row(
         children: [
@@ -973,7 +3039,7 @@ class _CountdownDialogState extends State<_CountdownDialog> {
           Expanded(
             child: Text(
               l10n?.countdownTitle ?? 'Emergency Alert Triggering',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
             ),
           ),
         ],
@@ -985,7 +3051,6 @@ class _CountdownDialogState extends State<_CountdownDialog> {
             l10n?.countdownWarning(_remaining) ??
                 'Alerting emergency contacts in $_remaining seconds',
             textAlign: TextAlign.center,
-            style: theme.textTheme.bodyLarge,
           ),
           const SizedBox(height: 24),
           Stack(
@@ -1004,35 +3069,49 @@ class _CountdownDialogState extends State<_CountdownDialog> {
               Text(
                 '$_remaining',
                 style: theme.textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
                   color: theme.colorScheme.error,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
             ],
           ),
+          if (_dispatchError != null) ...[
+            const SizedBox(height: 16),
+            Text(
+              _dispatchError!,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: theme.colorScheme.error,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ],
       ),
       actions: [
-        FilledButton.tonal(
-          style: FilledButton.styleFrom(
-            backgroundColor: theme.colorScheme.surfaceContainerHighest,
-          ),
-          onPressed: () {
-            _cancelled = true;
-            _timer?.cancel();
-            Navigator.of(context).pop();
-          },
-          child: Text(l10n?.cancel ?? 'Cancel / I\'m Safe'),
+        TextButton(
+          onPressed: _isDispatching
+              ? null
+              : () {
+                  _cancelled = true;
+                  _timer?.cancel();
+                  Navigator.of(context).pop();
+                },
+          child: Text(l10n?.cancel ?? 'Cancel / I’m Safe'),
         ),
         FilledButton(
           style: FilledButton.styleFrom(
             backgroundColor: theme.colorScheme.error,
             foregroundColor: Colors.white,
           ),
-          onPressed: () {
-            _dispatchNow();
-          },
-          child: const Text('Dispatch Now'),
+          onPressed: _isDispatching ? null : _dispatchNow,
+          child: _isDispatching
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(widget.language == 'bn' ? 'এখনই পাঠান' : 'Dispatch Now'),
         ),
       ],
     );

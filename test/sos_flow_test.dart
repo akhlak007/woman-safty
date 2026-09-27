@@ -3,10 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:safelife/app/app.dart';
 import 'package:safelife/core/services/location_service.dart';
+import 'package:safelife/features/auth/providers/auth_provider.dart';
 import 'package:safelife/features/dashboard/screens/dashboard_screen.dart';
 import 'package:safelife/features/profile/models/emergency_contact.dart';
 import 'package:safelife/features/sos/models/emergency_case.dart';
 import 'package:safelife/features/sos/providers/sos_provider.dart';
+import 'package:safelife/features/sos/repositories/emergency_repository.dart';
 import 'package:safelife/features/sos/screens/active_emergency_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -41,13 +43,27 @@ class MockLocationService extends LocationService {
   }
 }
 
+class FailingEmergencyRepository extends EmergencyRepository {
+  @override
+  Future<EmergencyCase> createEmergencyCase(EmergencyCase emergency) async {
+    throw Exception('Simulated dispatch failure');
+  }
+}
+
+class AuthenticatedTestAuthProvider extends SafeLifeAuthProvider {
+  @override
+  bool get isAuthenticated => true;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   GoogleFonts.config.allowRuntimeFetching = false;
 
   group('SosProvider Unit Tests', () {
     test('SosProvider countdown starts and cancels correctly', () {
-      final provider = SosProvider(locationService: const MockLocationService());
+      final provider = SosProvider(
+        locationService: const MockLocationService(),
+      );
       expect(provider.countdown, 5);
       expect(provider.isCountingDown, isFalse);
 
@@ -68,7 +84,9 @@ void main() {
 
     test('SosProvider dispatches emergency and resolves cleanly', () async {
       SharedPreferences.setMockInitialValues({});
-      final provider = SosProvider(locationService: const MockLocationService());
+      final provider = SosProvider(
+        locationService: const MockLocationService(),
+      );
 
       final emergency = await provider.dispatchEmergency(
         userId: 'u123',
@@ -84,6 +102,14 @@ void main() {
             verified: true,
             createdAt: DateTime(2026, 9, 19),
           ),
+          EmergencyContact(
+            id: 'c2',
+            name: 'Pending contact',
+            phone: '+8801822222222',
+            relation: 'Friend',
+            verified: false,
+            createdAt: DateTime(2026, 9, 19),
+          ),
         ],
         language: 'en',
       );
@@ -91,6 +117,8 @@ void main() {
       expect(emergency, isNotNull);
       expect(provider.hasActiveEmergency, isTrue);
       expect(provider.activeEmergency?.userName, 'Sadia');
+      expect(provider.activeEmergency?.contactAlerts, hasLength(1));
+      expect(provider.activeEmergency?.contactAlerts.single.contactId, 'c1');
 
       // Resolve emergency
       await provider.resolveEmergency(status: EmergencyStatus.resolved);
@@ -100,147 +128,199 @@ void main() {
   });
 
   group('Active Emergency Screen Widget Tests', () {
-    testWidgets('ActiveEmergencyScreen renders emergency information and resolve dialog', (
-      WidgetTester tester,
-    ) async {
-      SharedPreferences.setMockInitialValues({});
-      final sosProvider = SosProvider(locationService: const MockLocationService());
+    testWidgets(
+      'ActiveEmergencyScreen renders emergency information and resolve dialog',
+      (WidgetTester tester) async {
+        SharedPreferences.setMockInitialValues({});
+        final sosProvider = SosProvider(
+          locationService: const MockLocationService(),
+        );
 
-      await sosProvider.dispatchEmergency(
-        userId: 'u1',
-        userName: 'Amina',
-        userPhone: '+8801700000000',
-        contacts: [
-          EmergencyContact(
-            id: 'c1',
-            name: 'Father',
-            phone: '+8801722222222',
-            relation: 'Parent',
-            priority: 1,
-            verified: true,
-            createdAt: DateTime(2026, 9, 19),
+        await sosProvider.dispatchEmergency(
+          userId: 'u1',
+          userName: 'Amina',
+          userPhone: '+8801700000000',
+          contacts: [
+            EmergencyContact(
+              id: 'c1',
+              name: 'Father',
+              phone: '+8801722222222',
+              relation: 'Parent',
+              priority: 1,
+              verified: true,
+              createdAt: DateTime(2026, 9, 19),
+            ),
+          ],
+          language: 'en',
+        );
+
+        await tester.pumpWidget(
+          SafeLifeApp(
+            authProvider: AuthenticatedTestAuthProvider(),
+            sosProvider: sosProvider,
+            initialLocale: const Locale('en'),
+            home: const ActiveEmergencyScreen(),
           ),
-        ],
-        language: 'en',
-      );
+        );
+        await tester.pump();
 
-      await tester.pumpWidget(
-        SafeLifeApp(
-          sosProvider: sosProvider,
-          initialLocale: const Locale('en'),
-          home: const ActiveEmergencyScreen(),
-        ),
-      );
-      await tester.pump();
+        // Verify Screen Elements
+        expect(find.textContaining('ACTIVE EMERGENCY'), findsWidgets);
+        expect(find.text('Live GPS Location'), findsOneWidget);
+        expect(find.text('Alerted Emergency Contacts'), findsOneWidget);
+        expect(find.text('Father'), findsOneWidget);
+        expect(find.textContaining('Call 999'), findsOneWidget);
 
-      // Verify Screen Elements
-      expect(find.textContaining('ACTIVE EMERGENCY'), findsWidgets);
-      expect(find.text('Live GPS Location'), findsOneWidget);
-      expect(find.text('Alerted Emergency Contacts'), findsOneWidget);
-      expect(find.text('Father'), findsOneWidget);
-      expect(find.textContaining('Call 999'), findsOneWidget);
+        // Verify Resolve Action triggers Dialog
+        final resolveButton = find.text("I'm Safe / Resolve");
+        expect(resolveButton, findsOneWidget);
+        await tester.ensureVisible(resolveButton);
+        await tester.tap(resolveButton);
+        await tester.pump(const Duration(milliseconds: 300));
 
-      // Verify Resolve Action triggers Dialog
-      final resolveButton = find.text("I'm Safe / Resolve");
-      expect(resolveButton, findsOneWidget);
-      await tester.ensureVisible(resolveButton);
-      await tester.tap(resolveButton);
-      await tester.pump(const Duration(milliseconds: 300));
+        // Verify Dialog Options
+        expect(find.text('Resolve Emergency'), findsOneWidget);
+        expect(find.text('False Alarm / Test'), findsOneWidget);
+        expect(find.text('I Am Safe (Resolved)'), findsOneWidget);
 
-      // Verify Dialog Options
-      expect(find.text('Resolve Emergency'), findsOneWidget);
-      expect(find.text('False Alarm / Test'), findsOneWidget);
-      expect(find.text('I Am Safe (Resolved)'), findsOneWidget);
+        // Tap Resolved
+        await tester.tap(find.text('I Am Safe (Resolved)'));
+        await tester.pump(const Duration(milliseconds: 300));
 
-      // Tap Resolved
-      await tester.tap(find.text('I Am Safe (Resolved)'));
-      await tester.pump(const Duration(milliseconds: 300));
+        expect(sosProvider.hasActiveEmergency, isFalse);
 
-      expect(sosProvider.hasActiveEmergency, isFalse);
-
-      // Unmount to dispose repeating pulse animation
-      await tester.pumpWidget(const SizedBox());
-    });
+        // Unmount to dispose repeating pulse animation
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
   });
 
   group('Dashboard Emergency SOS Integration Tests', () {
-    testWidgets('Dashboard displays active emergency banner when SOS is active', (
-      WidgetTester tester,
-    ) async {
-      SharedPreferences.setMockInitialValues({});
-      final sosProvider = SosProvider(locationService: const MockLocationService());
+    testWidgets(
+      'Dashboard displays active emergency banner when SOS is active',
+      (WidgetTester tester) async {
+        SharedPreferences.setMockInitialValues({});
+        final sosProvider = SosProvider(
+          locationService: const MockLocationService(),
+        );
 
-      // 1. Initially without active emergency
-      await tester.pumpWidget(
-        SafeLifeApp(
-          sosProvider: sosProvider,
-          initialLocale: const Locale('en'),
-          home: DashboardScreen(
-            onToggleTheme: () {},
-            onToggleLocale: () {},
-            currentLocale: const Locale('en'),
-            currentThemeMode: ThemeMode.light,
+        // 1. Initially without active emergency
+        await tester.pumpWidget(
+          SafeLifeApp(
+            authProvider: AuthenticatedTestAuthProvider(),
+            sosProvider: sosProvider,
+            initialLocale: const Locale('en'),
+            home: DashboardScreen(
+              onToggleTheme: () {},
+              onToggleLocale: () {},
+              currentLocale: const Locale('en'),
+              currentThemeMode: ThemeMode.light,
+            ),
           ),
-        ),
-      );
-      await tester.pump();
+        );
+        await tester.pump();
 
-      expect(find.text('ACTIVE EMERGENCY IN PROGRESS'), findsNothing);
+        expect(find.text('ACTIVE EMERGENCY IN PROGRESS'), findsNothing);
 
-      // 2. Dispatch emergency and re-render
-      await sosProvider.dispatchEmergency(
-        userId: 'u1',
-        userName: 'Rina',
-        userPhone: '+8801700000000',
-        contacts: [],
-        language: 'en',
-      );
-      await tester.pump();
+        // 2. Dispatch emergency and re-render
+        await sosProvider.dispatchEmergency(
+          userId: 'u1',
+          userName: 'Rina',
+          userPhone: '+8801700000000',
+          contacts: [],
+          language: 'en',
+        );
+        await tester.pump();
 
-      // Banner should now be visible on Dashboard
-      expect(find.text('ACTIVE EMERGENCY IN PROGRESS'), findsOneWidget);
+        // Banner should now be visible on Dashboard
+        expect(find.text('ACTIVE EMERGENCY IN PROGRESS'), findsOneWidget);
 
-      await tester.pumpWidget(const SizedBox());
-    });
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
 
-    testWidgets('Tapping central SOS button launches countdown dialog and cancel works', (
-      WidgetTester tester,
-    ) async {
-      SharedPreferences.setMockInitialValues({});
-      final sosProvider = SosProvider(locationService: const MockLocationService());
+    testWidgets(
+      'Tapping central SOS button launches countdown dialog and cancel works',
+      (WidgetTester tester) async {
+        SharedPreferences.setMockInitialValues({});
+        final sosProvider = SosProvider(
+          locationService: const MockLocationService(),
+        );
 
-      await tester.pumpWidget(
-        SafeLifeApp(
-          sosProvider: sosProvider,
-          initialLocale: const Locale('en'),
-          home: DashboardScreen(
-            onToggleTheme: () {},
-            onToggleLocale: () {},
-            currentLocale: const Locale('en'),
-            currentThemeMode: ThemeMode.light,
+        await tester.pumpWidget(
+          SafeLifeApp(
+            authProvider: AuthenticatedTestAuthProvider(),
+            sosProvider: sosProvider,
+            initialLocale: const Locale('en'),
+            home: DashboardScreen(
+              onToggleTheme: () {},
+              onToggleLocale: () {},
+              currentLocale: const Locale('en'),
+              currentThemeMode: ThemeMode.light,
+            ),
           ),
-        ),
-      );
-      await tester.pump();
+        );
+        await tester.pump();
 
-      // Tap the central SOS button
-      final sosButton = find.byIcon(Icons.emergency_rounded);
-      expect(sosButton, findsOneWidget);
-      await tester.tap(sosButton);
-      await tester.pump(const Duration(milliseconds: 300));
+        // Tap the central SOS button
+        final sosButton = find.byIcon(Icons.emergency_rounded);
+        expect(sosButton, findsOneWidget);
+        await tester.tap(sosButton);
+        await tester.pump(const Duration(milliseconds: 300));
 
-      // Countdown dialog should appear
-      expect(find.text('Emergency Alert Triggering'), findsOneWidget);
-      expect(find.text('Dispatch Now'), findsOneWidget);
-      expect(find.text('Cancel'), findsOneWidget);
+        // Countdown dialog should appear
+        expect(find.text('Emergency Alert Triggering'), findsOneWidget);
+        expect(find.text('Dispatch Now'), findsOneWidget);
+        expect(find.text('Cancel'), findsOneWidget);
 
-      // Tap Cancel
-      await tester.tap(find.text('Cancel'));
-      await tester.pump(const Duration(milliseconds: 300));
+        // Tap Cancel
+        await tester.tap(find.text('Cancel'));
+        await tester.pump(const Duration(milliseconds: 300));
 
-      expect(find.text('Emergency Alert Triggering'), findsNothing);
+        expect(find.text('Emergency Alert Triggering'), findsNothing);
 
-      await tester.pumpWidget(const SizedBox());
-    });
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+
+    testWidgets(
+      'Failed SOS dispatch stays in dialog and offers retry guidance',
+      (WidgetTester tester) async {
+        final sosProvider = SosProvider(
+          locationService: const MockLocationService(),
+          emergencyRepository: FailingEmergencyRepository(),
+        );
+
+        await tester.pumpWidget(
+          SafeLifeApp(
+            authProvider: AuthenticatedTestAuthProvider(),
+            sosProvider: sosProvider,
+            initialLocale: const Locale('en'),
+            home: DashboardScreen(
+              onToggleTheme: () {},
+              onToggleLocale: () {},
+              currentLocale: const Locale('en'),
+              currentThemeMode: ThemeMode.light,
+            ),
+          ),
+        );
+        await tester.pump();
+
+        await tester.tap(find.byIcon(Icons.emergency_rounded));
+        await tester.pump();
+        await tester.tap(find.text('Dispatch Now'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.textContaining('Simulated dispatch failure'),
+          findsOneWidget,
+        );
+        expect(find.text('Emergency Alert Triggering'), findsOneWidget);
+        expect(sosProvider.hasActiveEmergency, isFalse);
+
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+      },
+    );
   });
 }

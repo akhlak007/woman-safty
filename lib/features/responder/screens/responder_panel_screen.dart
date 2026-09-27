@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 import '../../../app/theme/risk_level_theme.dart';
 import '../../../core/constants/alert_constants.dart';
 import '../../../l10n/app_localizations.dart';
@@ -17,6 +18,16 @@ class ResponderPanelScreen extends StatefulWidget {
 class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
   final _noteController = TextEditingController();
   final _unitController = TextEditingController(text: 'Dhaka Emergency Unit 1');
+  bool _listeningStarted = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_listeningStarted) {
+      _listeningStarted = true;
+      context.read<ResponderProvider>().startListening();
+    }
+  }
 
   @override
   void dispose() {
@@ -36,7 +47,9 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
   }
 
   Future<void> _openLocation(double lat, double lng) async {
-    final uri = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng');
+    final uri = Uri.parse(
+      'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng',
+    );
     try {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (_) {}
@@ -57,17 +70,27 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
             margin: const EdgeInsets.only(right: 16),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: provider.criticalCount > 0 ? Colors.red.shade700 : Colors.green.shade700,
+              color: provider.criticalCount > 0
+                  ? Colors.red.shade700
+                  : Colors.green.shade700,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.emergency_rounded, size: 16, color: Colors.white),
+                const Icon(
+                  Icons.emergency_rounded,
+                  size: 16,
+                  color: Colors.white,
+                ),
                 const SizedBox(width: 6),
                 Text(
                   '${provider.criticalCount} CRITICAL',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
@@ -97,11 +120,20 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
         const VerticalDivider(width: 1),
         Expanded(
           child: provider.selectedCase != null
-              ? _buildCaseDetails(context, provider.selectedCase!, provider, theme, l10n)
+              ? _buildCaseDetails(
+                  context,
+                  provider.selectedCase!,
+                  provider,
+                  theme,
+                  l10n,
+                )
               : Center(
                   child: Text(
-                    l10n?.noActiveEmergencies ?? 'No active emergencies selected',
-                    style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.outline),
+                    l10n?.noActiveEmergencies ??
+                        'No active emergencies selected',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: theme.colorScheme.outline,
+                    ),
                   ),
                 ),
         ),
@@ -115,31 +147,37 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
     ThemeData theme,
     AppLocalizations? l10n,
   ) {
-    return _buildQueueList(context, provider, theme, l10n, onSelectMobile: (rCase) {
-      provider.selectCase(rCase);
-      showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        builder: (_) => DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.85,
-          minChildSize: 0.5,
-          maxChildSize: 0.95,
-          builder: (_, scrollController) => _buildCaseDetails(
-            context,
-            rCase,
-            provider,
-            theme,
-            l10n,
-            scrollController: scrollController,
+    return _buildQueueList(
+      context,
+      provider,
+      theme,
+      l10n,
+      onSelectMobile: (rCase) {
+        provider.selectCase(rCase);
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          useSafeArea: true,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
-        ),
-      );
-    });
+          builder: (_) => DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.85,
+            minChildSize: 0.5,
+            maxChildSize: 0.95,
+            builder: (_, scrollController) => _buildCaseDetails(
+              context,
+              rCase,
+              provider,
+              theme,
+              l10n,
+              scrollController: scrollController,
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildQueueList(
@@ -179,33 +217,47 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
           child: provider.isLoading
               ? const Center(child: CircularProgressIndicator())
               : cases.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.check_circle_outline_rounded, size: 48, color: Colors.green.shade600),
-                          const SizedBox(height: 12),
-                          Text(
-                            l10n?.noActiveEmergencies ?? 'No active emergencies in triage queue',
-                            style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.outline),
-                          ),
-                        ],
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.check_circle_outline_rounded,
+                        size: 48,
+                        color: Colors.green.shade600,
                       ),
-                    )
-                  : ListView.builder(
-                      itemCount: cases.length,
-                      itemBuilder: (context, index) {
-                        final rCase = cases[index];
-                        final isSelected = provider.selectedCase?.caseId == rCase.caseId;
-                        return _buildCaseTile(context, rCase, isSelected, theme, () {
-                          if (onSelectMobile != null) {
-                            onSelectMobile(rCase);
-                          } else {
-                            provider.selectCase(rCase);
-                          }
-                        });
+                      const SizedBox(height: 12),
+                      Text(
+                        l10n?.noActiveEmergencies ??
+                            'No active emergencies in triage queue',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.outline,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: cases.length,
+                  itemBuilder: (context, index) {
+                    final rCase = cases[index];
+                    final isSelected =
+                        provider.selectedCase?.caseId == rCase.caseId;
+                    return _buildCaseTile(
+                      context,
+                      rCase,
+                      isSelected,
+                      theme,
+                      () {
+                        if (onSelectMobile != null) {
+                          onSelectMobile(rCase);
+                        } else {
+                          provider.selectCase(rCase);
+                        }
                       },
-                    ),
+                    );
+                  },
+                ),
         ),
       ],
     );
@@ -219,7 +271,9 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
     VoidCallback onTap,
   ) {
     final eCase = rCase.emergencyCase;
-    final riskColor = theme.extension<RiskLevelTheme>()?.getColor(eCase.riskLevel) ?? Colors.red;
+    final riskColor =
+        theme.extension<RiskLevelTheme>()?.getColor(eCase.riskLevel) ??
+        Colors.red;
     final isCritical = eCase.riskLevel == RiskLevel.critical;
 
     return Card(
@@ -231,8 +285,8 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
           color: isCritical
               ? Colors.red
               : isSelected
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.outlineVariant.withAlpha(60),
+              ? theme.colorScheme.primary
+              : theme.colorScheme.outlineVariant.withAlpha(60),
           width: isCritical ? 2 : 1,
         ),
       ),
@@ -247,20 +301,30 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: riskColor.withAlpha(30),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       eCase.riskLevel.name.toUpperCase(),
-                      style: TextStyle(color: riskColor, fontWeight: FontWeight.bold, fontSize: 11),
+                      style: TextStyle(
+                        color: riskColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Flexible(
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: theme.colorScheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(8),
@@ -269,33 +333,48 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
                         rCase.status.label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.bold),
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Text(
                     '${DateTime.now().difference(eCase.createdAt).inMinutes}m ago',
-                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.outline,
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 10),
               Text(
                 eCase.userName,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
               ),
               const SizedBox(height: 4),
               Row(
                 children: [
-                  Icon(_getTypeIcon(eCase.type), size: 16, color: theme.colorScheme.primary),
+                  Icon(
+                    _getTypeIcon(eCase.type),
+                    size: 16,
+                    color: theme.colorScheme.primary,
+                  ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       _getTypeLabel(eCase.type),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: theme.colorScheme.primary, fontSize: 13, fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        color: theme.colorScheme.primary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
@@ -306,7 +385,9 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
                   eCase.lastKnownLocation!.address!,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.outline,
+                  ),
                 ),
               ],
             ],
@@ -325,7 +406,9 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
     ScrollController? scrollController,
   }) {
     final eCase = rCase.emergencyCase;
-    final riskColor = theme.extension<RiskLevelTheme>()?.getColor(eCase.riskLevel) ?? Colors.red;
+    final riskColor =
+        theme.extension<RiskLevelTheme>()?.getColor(eCase.riskLevel) ??
+        Colors.red;
 
     return SingleChildScrollView(
       controller: scrollController,
@@ -346,7 +429,11 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
                 CircleAvatar(
                   radius: 24,
                   backgroundColor: riskColor,
-                  child: const Icon(Icons.emergency_rounded, color: Colors.white, size: 28),
+                  child: const Icon(
+                    Icons.emergency_rounded,
+                    color: Colors.white,
+                    size: 28,
+                  ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -355,15 +442,23 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
                     children: [
                       Text(
                         _getTypeLabel(eCase.type).toUpperCase(),
-                        style: TextStyle(color: riskColor, fontWeight: FontWeight.bold, fontSize: 13),
+                        style: TextStyle(
+                          color: riskColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
                       ),
                       Text(
                         eCase.userName,
-                        style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       Text(
                         'Case ID: ${eCase.id}',
-                        style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.outline,
+                        ),
                       ),
                     ],
                   ),
@@ -379,7 +474,9 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
 
           // Action Bar: Accept / Status Transitions
           Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
@@ -387,7 +484,9 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
                 children: [
                   Text(
                     'Operational Dispatch Actions',
-                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   if (rCase.status == ResponderStatus.pending) ...[
@@ -396,17 +495,24 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
                         backgroundColor: Colors.indigo.shade700,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      onPressed: () => _showAcceptDialog(context, provider, rCase.caseId),
+                      onPressed: () =>
+                          _showAcceptDialog(context, provider, rCase.caseId),
                       icon: const Icon(Icons.assignment_turned_in_rounded),
-                      label: Text(l10n?.acceptAndDispatch ?? 'Accept & Dispatch Unit'),
+                      label: Text(
+                        l10n?.acceptAndDispatch ?? 'Accept & Dispatch Unit',
+                      ),
                     ),
-                  ] else if (rCase.status == ResponderStatus.accepted || rCase.status == ResponderStatus.dispatched) ...[
+                  ] else if (rCase.status == ResponderStatus.accepted ||
+                      rCase.status == ResponderStatus.dispatched) ...[
                     FilledButton.icon(
                       style: FilledButton.styleFrom(
                         backgroundColor: Colors.amber.shade800,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      onPressed: () => provider.updateStatus(rCase.caseId, ResponderStatus.onScene),
+                      onPressed: () => provider.updateStatus(
+                        rCase.caseId,
+                        ResponderStatus.onScene,
+                      ),
                       icon: const Icon(Icons.location_on_rounded),
                       label: Text(l10n?.markOnScene ?? 'Mark On-Scene'),
                     ),
@@ -416,16 +522,26 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
                         backgroundColor: Colors.green.shade700,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      onPressed: () => provider.updateStatus(rCase.caseId, ResponderStatus.resolved),
+                      onPressed: () => provider.updateStatus(
+                        rCase.caseId,
+                        ResponderStatus.resolved,
+                      ),
                       icon: const Icon(Icons.check_circle_rounded),
-                      label: Text(l10n?.resolveCaseAction ?? 'Resolve Emergency Case'),
+                      label: Text(
+                        l10n?.resolveCaseAction ?? 'Resolve Emergency Case',
+                      ),
                     ),
                   ] else ...[
                     Row(
                       children: [
                         const Icon(Icons.check_circle, color: Colors.green),
                         const SizedBox(width: 8),
-                        Text('Emergency Resolved', style: theme.textTheme.titleSmall?.copyWith(color: Colors.green)),
+                        Text(
+                          'Emergency Resolved',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: Colors.green,
+                          ),
+                        ),
                       ],
                     ),
                   ],
@@ -433,7 +549,9 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
                     const SizedBox(height: 10),
                     Text(
                       'Assigned: ${rCase.assignedUnit}',
-                      style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ],
@@ -444,7 +562,9 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
 
           // Triage Indicators & Symptoms
           Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
@@ -452,7 +572,9 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
                 children: [
                   Text(
                     l10n?.triageIndicators ?? 'Triage Indicators',
-                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   if (eCase.triageAnswers.isNotEmpty) ...[
@@ -463,13 +585,17 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
                           children: [
                             const Icon(Icons.chevron_right_rounded, size: 18),
                             const SizedBox(width: 6),
-                            Expanded(child: Text('${entry.key}: ${entry.value}')),
+                            Expanded(
+                              child: Text('${entry.key}: ${entry.value}'),
+                            ),
                           ],
                         ),
                       ),
                     ),
                   ] else ...[
-                    const Text('Direct User SOS Alert Triggered (No questionnaire answers)'),
+                    const Text(
+                      'Direct User SOS Alert Triggered (No questionnaire answers)',
+                    ),
                   ],
                 ],
               ),
@@ -480,7 +606,9 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
           // GPS Location Card
           if (eCase.lastKnownLocation != null) ...[
             Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
@@ -488,7 +616,9 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
                   children: [
                     Text(
                       'Live Incident Coordinates',
-                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -517,7 +647,9 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
 
           // Clinical & Responder Notes
           Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
@@ -525,7 +657,9 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
                 children: [
                   Text(
                     l10n?.responderNotes ?? 'Clinical / Responder Notes',
-                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   if (rCase.notes.isNotEmpty) ...[
@@ -534,7 +668,8 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
                         margin: const EdgeInsets.only(bottom: 6),
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.surfaceContainerHighest.withAlpha(80),
+                          color: theme.colorScheme.surfaceContainerHighest
+                              .withAlpha(80),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(n, style: const TextStyle(fontSize: 13)),
@@ -548,7 +683,9 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
                         child: TextField(
                           controller: _noteController,
                           decoration: InputDecoration(
-                            hintText: l10n?.addNoteHint ?? 'Enter notes or updates...',
+                            hintText:
+                                l10n?.addNoteHint ??
+                                'Enter notes or updates...',
                             isDense: true,
                             border: const OutlineInputBorder(),
                           ),
@@ -576,7 +713,11 @@ class _ResponderPanelScreenState extends State<ResponderPanelScreen> {
     );
   }
 
-  void _showAcceptDialog(BuildContext context, ResponderProvider provider, String caseId) {
+  void _showAcceptDialog(
+    BuildContext context,
+    ResponderProvider provider,
+    String caseId,
+  ) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(

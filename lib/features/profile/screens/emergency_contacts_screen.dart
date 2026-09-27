@@ -11,100 +11,279 @@ class EmergencyContactsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final contactsProvider = context.watch<ContactsProvider>();
     final contacts = contactsProvider.contacts;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n?.myContacts ?? 'Emergency Contacts'),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddEditContactDialog(context),
-        icon: const Icon(Icons.person_add_rounded),
-        label: Text(l10n?.addContact ?? 'Add Contact'),
-      ),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 850),
-            child: contactsProvider.isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : contacts.isEmpty
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32.0),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.contact_phone_outlined,
-                            size: 64,
-                            color: theme.colorScheme.outline,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No Emergency Contacts Yet',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            l10n?.minContactsNotice ??
-                                'We recommend adding at least 2 trusted emergency contacts who can receive your alerts and location.',
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          FilledButton.icon(
-                            onPressed: () => _showAddEditContactDialog(context),
-                            icon: const Icon(Icons.add),
-                            label: Text(l10n?.addContact ?? 'Add First Contact'),
-                          ),
-                        ],
-                      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final screenWidth = constraints.maxWidth;
+        final isDesktop = screenWidth >= 960;
+        final isTablet = screenWidth >= 640 && screenWidth < 960;
+        final horizontalPadding = isDesktop ? 36.0 : (isTablet ? 24.0 : 16.0);
+
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(
+              l10n?.myContacts ?? 'Emergency Contacts & Guardians',
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+            elevation: 0,
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: contacts.length + 1,
-                    separatorBuilder: (_, _) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      if (index == 0) {
-                        return Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surfaceContainerHighest.withAlpha(120),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.privacy_tip_outlined,
-                                size: 20,
-                                color: theme.colorScheme.primary,
+                    onPressed: () => _showAddEditContactDialog(context),
+                    icon: const Icon(Icons.person_add_rounded, size: 18),
+                    label: Text(
+                      l10n?.addContact ?? 'Add Contact',
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          body: SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1320),
+                child: contactsProvider.isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : CustomScrollView(
+                        slivers: [
+                          // Web Hero Banner Section
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                horizontalPadding,
+                                isDesktop ? 24 : 16,
+                                horizontalPadding,
+                                16,
                               ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  'To prevent misuse, contacts must consent before receiving continuous live location tracking.',
-                                  style: theme.textTheme.bodySmall,
+                              child: Container(
+                                padding: EdgeInsets.all(isDesktop ? 30 : 20),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: isDark
+                                        ? [
+                                            const Color(0xFF1E1428),
+                                            const Color(0xFF261332),
+                                            const Color(0xFF0F172A),
+                                          ]
+                                        : [
+                                            const Color(0xFF4C1D95),
+                                            const Color(0xFF5B21B6),
+                                            const Color(0xFF6D28D9),
+                                          ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(24),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Colors.black26,
+                                      blurRadius: 18,
+                                      offset: Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white.withAlpha(25),
+                                              borderRadius: BorderRadius.circular(999),
+                                              border: Border.all(color: Colors.white.withAlpha(50)),
+                                            ),
+                                            child: const Text(
+                                              'TRUSTED GUARDIAN NETWORK',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w900,
+                                                letterSpacing: 1.1,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 12),
+                                          Text(
+                                            'Emergency Guardian & Contact Directory',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: isDesktop ? 28 : 20,
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          ConstrainedBox(
+                                            constraints: const BoxConstraints(maxWidth: 700),
+                                            child: Text(
+                                              'Your trusted contacts will be immediately alerted via direct SMS broadcast with your live GPS location during an emergency.',
+                                              style: TextStyle(
+                                                color: Colors.white.withAlpha(220),
+                                                fontSize: 13,
+                                                height: 1.45,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (isDesktop) ...[
+                                      const SizedBox(width: 24),
+                                      Container(
+                                        padding: const EdgeInsets.all(18),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withAlpha(20),
+                                          shape: BoxShape.circle,
+                                          border: Border.all(color: Colors.white.withAlpha(40), width: 2),
+                                        ),
+                                        child: const Icon(
+                                          Icons.people_alt_rounded,
+                                          color: Colors.white,
+                                          size: 44,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
                               ),
-                            ],
+                            ),
                           ),
-                        );
-                      }
 
-                      final contact = contacts[index - 1];
-                      return _ContactCard(contact: contact);
-                    },
-                  ),
+                          // Privacy & Consent Note Card
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: horizontalPadding,
+                                vertical: 6,
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.surfaceContainerHighest.withAlpha(90),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: theme.colorScheme.outlineVariant.withAlpha(70),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.privacy_tip_outlined,
+                                      size: 22,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        'To ensure safety compliance and prevent unauthorized tracking, contacts must verify consent before receiving continuous live location streaming.',
+                                        style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          // Empty state or Multi-Column Grid
+                          if (contacts.isEmpty)
+                            SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(32.0),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.contact_phone_outlined,
+                                        size: 68,
+                                        color: theme.colorScheme.outlineVariant,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        'No Emergency Contacts Yet',
+                                        style: theme.textTheme.titleMedium?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      ConstrainedBox(
+                                        constraints: const BoxConstraints(maxWidth: 480),
+                                        child: Text(
+                                          l10n?.minContactsNotice ??
+                                              'We recommend adding at least 2 trusted emergency contacts who can receive your alerts and live GPS location.',
+                                          textAlign: TextAlign.center,
+                                          style: theme.textTheme.bodyMedium?.copyWith(
+                                            color: theme.colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 24),
+                                      MouseRegion(
+                                        cursor: SystemMouseCursors.click,
+                                        child: FilledButton.icon(
+                                          onPressed: () => _showAddEditContactDialog(context),
+                                          icon: const Icon(Icons.add),
+                                          label: Text(l10n?.addContact ?? 'Add First Contact'),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            )
+                          else
+                            SliverPadding(
+                              padding: EdgeInsets.fromLTRB(
+                                horizontalPadding,
+                                14,
+                                horizontalPadding,
+                                48,
+                              ),
+                              sliver: SliverGrid(
+                                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: isDesktop ? 2 : 1,
+                                  mainAxisSpacing: 16,
+                                  crossAxisSpacing: 16,
+                                  mainAxisExtent: 185,
+                                ),
+                                delegate: SliverChildBuilderDelegate(
+                                  (context, index) {
+                                    final contact = contacts[index];
+                                    return _WebContactCard(
+                                      contact: contact,
+                                      onEdit: () => _showAddEditContactDialog(context, contact),
+                                    );
+                                  },
+                                  childCount: contacts.length,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+              ),
             ),
           ),
-        ),
+        );
+      },
     );
   }
 
@@ -121,146 +300,245 @@ class EmergencyContactsScreen extends StatelessWidget {
   }
 }
 
-class _ContactCard extends StatelessWidget {
+class _WebContactCard extends StatefulWidget {
   final EmergencyContact contact;
+  final VoidCallback onEdit;
 
-  const _ContactCard({required this.contact});
+  const _WebContactCard({
+    required this.contact,
+    required this.onEdit,
+  });
+
+  @override
+  State<_WebContactCard> createState() => _WebContactCardState();
+}
+
+class _WebContactCardState extends State<_WebContactCard> {
+  bool _isHovered = false;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final contactsProvider = context.read<ContactsProvider>();
+    final contact = widget.contact;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: contact.verified
-                      ? theme.colorScheme.primary.withAlpha(25)
-                      : theme.colorScheme.error.withAlpha(25),
-                  child: Icon(
-                    contact.verified
-                        ? Icons.check_circle_rounded
-                        : Icons.pending_actions_rounded,
-                    color: contact.verified
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.error,
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        transform: Matrix4.translationValues(0, _isHovered ? -4 : 0, 0),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: _isHovered
+                ? theme.colorScheme.primary.withAlpha(160)
+                : theme.colorScheme.outlineVariant.withAlpha(70),
+            width: _isHovered ? 1.5 : 1.0,
+          ),
+          boxShadow: _isHovered
+              ? [
+                  BoxShadow(
+                    color: theme.colorScheme.primary.withAlpha(isDark ? 45 : 20),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              contact.name,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
+                ]
+              : [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(isDark ? 25 : 8),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(18.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Top details row
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor: contact.verified
+                        ? const Color(0xFF10B981).withAlpha(25)
+                        : theme.colorScheme.error.withAlpha(25),
+                    child: Icon(
+                      contact.verified
+                          ? Icons.verified_user_rounded
+                          : Icons.pending_actions_rounded,
+                      color: contact.verified
+                          ? const Color(0xFF10B981)
+                          : theme.colorScheme.error,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                contact.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 16,
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(6),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                contact.relation,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
                             ),
-                            child: Text(
-                              contact.relation,
-                              style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primary.withAlpha(20),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                'P${contact.priority}',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
                             ),
+                          ],
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          contact.phone,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
                           ),
-                        ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuButton<String>(
+                    onSelected: (val) {
+                      if (val == 'edit') {
+                        widget.onEdit();
+                      } else if (val == 'delete') {
+                        _confirmDelete(context, contactsProvider, contact.id);
+                      } else if (val == 'verify') {
+                        _showManualVerifyDialog(context, contactsProvider, contact.id);
+                      }
+                    },
+                    itemBuilder: (ctx) => [
+                      const PopupMenuItem(
+                        value: 'edit',
+                        child: Text('Edit Contact'),
                       ),
-                      const SizedBox(height: 2),
+                      if (!contact.verified)
+                        const PopupMenuItem(
+                          value: 'verify',
+                          child: Text('Enter Verification Code'),
+                        ),
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Text('Delete Contact'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+
+              Divider(height: 1, color: theme.colorScheme.outlineVariant.withAlpha(60)),
+
+              // Bottom status and action row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        contact.verified ? Icons.check_circle_rounded : Icons.info_outline,
+                        size: 16,
+                        color: contact.verified
+                            ? const Color(0xFF10B981)
+                            : Colors.amber.shade800,
+                      ),
+                      const SizedBox(width: 6),
                       Text(
-                        contact.phone,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                        contact.verified
+                            ? (l10n?.verifiedConsent ?? 'Verified Guardian')
+                            : (l10n?.pendingConsent ?? 'Pending Consent'),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: contact.verified
+                              ? const Color(0xFF10B981)
+                              : Colors.amber.shade800,
                         ),
                       ),
                     ],
                   ),
-                ),
-                PopupMenuButton<String>(
-                  onSelected: (val) {
-                    if (val == 'delete') {
-                      _confirmDelete(context, contactsProvider, contact.id);
-                    } else if (val == 'verify') {
-                      _showManualVerifyDialog(context, contactsProvider, contact.id);
-                    }
-                  },
-                  itemBuilder: (ctx) => [
-                    if (!contact.verified)
-                      const PopupMenuItem(
-                        value: 'verify',
-                        child: Text('Enter Verification Code'),
+                  if (!contact.verified)
+                    MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: TextButton.icon(
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: () async {
+                          final code = await contactsProvider.requestConsent(contact.id);
+                          if (context.mounted && code != null) {
+                            _showConsentSentDialog(context, code);
+                          }
+                        },
+                        icon: const Icon(Icons.send_rounded, size: 14),
+                        label: Text(
+                          l10n?.requestConsent ?? 'Send Verification SMS',
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                        ),
                       ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Text('Delete Contact'),
+                    )
+                  else
+                    Row(
+                      children: const [
+                        Icon(Icons.lock_rounded, size: 13, color: Color(0xFF10B981)),
+                        SizedBox(width: 4),
+                        Text(
+                          'SMS Live Alerts Active',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            const Divider(height: 1),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      contact.verified ? Icons.verified_rounded : Icons.info_outline,
-                      size: 16,
-                      color: contact.verified
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.tertiary,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      contact.verified
-                          ? (l10n?.verifiedConsent ?? 'Verified (Consent Granted)')
-                          : (l10n?.pendingConsent ?? 'Pending Consent'),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: contact.verified
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.tertiary,
-                      ),
-                    ),
-                  ],
-                ),
-                if (!contact.verified)
-                  TextButton.icon(
-                    style: TextButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                    ),
-                    onPressed: () async {
-                      final code = await contactsProvider.requestConsent(contact.id);
-                      if (context.mounted && code != null) {
-                        _showConsentSentDialog(context, code);
-                      }
-                    },
-                    icon: const Icon(Icons.send_rounded, size: 16),
-                    label: Text(l10n?.requestConsent ?? 'Send Request'),
-                  ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

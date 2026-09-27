@@ -1,6 +1,8 @@
 import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
 import '../models/user_profile.dart';
 import '../repositories/auth_repository.dart';
 import '../../profile/repositories/profile_repository.dart';
@@ -12,6 +14,8 @@ class SafeLifeAuthProvider extends ChangeNotifier {
 
   User? _user;
   UserProfile? _userProfile;
+  bool _isAdmin = false;
+  bool _isResponder = false;
   bool _isLoading = false;
   String? _errorMessage;
   StreamSubscription<User?>? _authSubscription;
@@ -20,22 +24,27 @@ class SafeLifeAuthProvider extends ChangeNotifier {
   SafeLifeAuthProvider({
     AuthRepository? authRepository,
     ProfileRepository? profileRepository,
-  })  : _authRepository = authRepository ?? AuthRepository(),
-        _profileRepository = profileRepository ?? ProfileRepository() {
+  }) : _authRepository = authRepository ?? AuthRepository(),
+       _profileRepository = profileRepository ?? ProfileRepository() {
     _init();
   }
 
   User? get user => _user;
   UserProfile? get userProfile => _userProfile;
   bool get isAuthenticated => _user != null;
+  bool get canAccessAdmin => _isAdmin;
+  bool get canAccessResponder => _isResponder;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
   void _init() {
     _authSubscription = _authRepository.authStateChanges.listen((firebaseUser) {
       _user = firebaseUser;
+      _isAdmin = false;
+      _isResponder = false;
       if (firebaseUser != null) {
         _subscribeToProfile(firebaseUser.uid);
+        _loadAuthorizationClaims(firebaseUser);
       } else {
         _profileSubscription?.cancel();
         _userProfile = null;
@@ -44,10 +53,29 @@ class SafeLifeAuthProvider extends ChangeNotifier {
     });
   }
 
+  Future<void> _loadAuthorizationClaims(User firebaseUser) async {
+    try {
+      final token = await firebaseUser.getIdTokenResult();
+      if (_user?.uid != firebaseUser.uid) return;
+      final claims = token.claims ?? const <String, dynamic>{};
+      _isAdmin = claims['admin'] == true;
+      _isResponder = _isAdmin || claims['responder'] == true;
+      notifyListeners();
+    } catch (_) {
+      // Authorization fails closed when claims cannot be verified.
+      if (_user?.uid == firebaseUser.uid) {
+        _isAdmin = false;
+        _isResponder = false;
+        notifyListeners();
+      }
+    }
+  }
+
   void _subscribeToProfile(String uid) {
     _profileSubscription?.cancel();
-    _profileSubscription =
-        _profileRepository.streamUserProfile(uid).listen((profile) {
+    _profileSubscription = _profileRepository.streamUserProfile(uid).listen((
+      profile,
+    ) {
       _userProfile = profile;
       notifyListeners();
     });
@@ -158,6 +186,8 @@ class SafeLifeAuthProvider extends ChangeNotifier {
     await _authRepository.signOut();
     _user = null;
     _userProfile = null;
+    _isAdmin = false;
+    _isResponder = false;
     _isLoading = false;
     notifyListeners();
   }

@@ -48,7 +48,8 @@ class _AmbulanceRequestScreenState extends State<AmbulanceRequestScreen> {
       final loc = await _locationService.getCurrentLocation();
       if (mounted && loc != null) {
         setState(() {
-          _pickupController.text = 'Current GPS: ${loc.latitude.toStringAsFixed(4)}, ${loc.longitude.toStringAsFixed(4)}';
+          _pickupController.text =
+              'Current GPS: ${loc.latitude.toStringAsFixed(4)}, ${loc.longitude.toStringAsFixed(4)}';
           _isLoadingLocation = false;
         });
       }
@@ -103,20 +104,173 @@ class _AmbulanceRequestScreenState extends State<AmbulanceRequestScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final ambulanceProv = context.watch<AmbulanceProvider>();
     final booking = ambulanceProv.activeBooking;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n?.ambulanceRequestTitle ?? 'Request Emergency Ambulance'),
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 850),
-          child: ambulanceProv.hasActiveBooking && booking != null
-              ? _buildActiveTrackingView(context, booking, ambulanceProv, theme, l10n)
-              : _buildBookingForm(context, theme, l10n),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final screenWidth = constraints.maxWidth;
+        final isDesktop = screenWidth >= 960;
+        final isTablet = screenWidth >= 640 && screenWidth < 960;
+        final horizontalPadding = isDesktop ? 36.0 : (isTablet ? 24.0 : 16.0);
+
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(
+              l10n?.ambulanceRequestTitle ?? 'Request Emergency Ambulance',
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+            elevation: 0,
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFDC2626),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: () => EmergencyNumbers.makeEmergencyCall(EmergencyNumbers.nationalEmergency),
+                    icon: const Icon(Icons.phone_in_talk_rounded, size: 16),
+                    label: const Text(
+                      'Dial 999',
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          body: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1320),
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  horizontalPadding,
+                  isDesktop ? 24 : 16,
+                  horizontalPadding,
+                  48,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Top Dispatch Hero Banner
+                    _buildTopBanner(theme, isDark, isDesktop),
+                    const SizedBox(height: 24),
+
+                    // Active tracking view OR booking form
+                    ambulanceProv.hasActiveBooking && booking != null
+                        ? _buildActiveTrackingView(
+                            context,
+                            booking,
+                            ambulanceProv,
+                            theme,
+                            l10n,
+                            isDesktop,
+                          )
+                        : _buildBookingForm(
+                            context,
+                            theme,
+                            l10n,
+                            isDesktop,
+                            isTablet,
+                          ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTopBanner(ThemeData theme, bool isDark, bool isDesktop) {
+    return Container(
+      padding: EdgeInsets.all(isDesktop ? 28 : 20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDark
+              ? [const Color(0xFF2C1318), const Color(0xFF1E1424), const Color(0xFF0F172A)]
+              : [const Color(0xFF991B1B), const Color(0xFF7F1D1D), const Color(0xFF450A0A)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black26,
+            blurRadius: 16,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(24),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.airport_shuttle_rounded,
+              color: Colors.white,
+              size: 32,
+            ),
+          ),
+          const SizedBox(width: 18),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF10B981),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'RAPID AMBULANCE DISPATCH NETWORK',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Emergency Life Support & Hospital Transport',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: isDesktop ? 22 : 17,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Direct dispatch with GPS coordination, onboard clinical equipment, and hospital pre-notification.',
+                  style: TextStyle(
+                    color: Colors.white.withAlpha(220),
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -125,201 +279,108 @@ class _AmbulanceRequestScreenState extends State<AmbulanceRequestScreen> {
     BuildContext context,
     ThemeData theme,
     AppLocalizations? l10n,
+    bool isDesktop,
+    bool isTablet,
   ) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20.0),
+    // Form Inputs Column
+    final formInputs = Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: theme.colorScheme.outlineVariant.withAlpha(70)),
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // National Emergency Direct Calling Bar
           Row(
             children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: theme.colorScheme.error,
-                    side: BorderSide(color: theme.colorScheme.error),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  onPressed: () => EmergencyNumbers.makeEmergencyCall(EmergencyNumbers.nationalEmergency),
-                  icon: const Icon(Icons.phone_in_talk_rounded, size: 18),
-                  label: Text(
-                    l10n?.governmentAmbulance999 ?? 'Call 999 Ambulance',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                ),
-              ),
+              const Icon(Icons.emergency_rounded, color: Color(0xFFDC2626), size: 20),
               const SizedBox(width: 8),
               Expanded(
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: theme.colorScheme.primary,
-                    side: BorderSide(color: theme.colorScheme.primary),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  onPressed: () => _makeCall('+88029330188'),
-                  icon: const Icon(Icons.medical_services_outlined, size: 18),
-                  label: Text(
-                    l10n?.redCrescentAmbulance ?? 'Red Crescent',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                child: Text(
+                  '1. Select Life Support Level',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
-          // Ambulance Type Selection
-          Text(
-            l10n?.ambulanceType ?? 'Ambulance Type',
-            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+          // BLS and ALS Cards side-by-side or stacked
+          _buildTypeOption(
+            type: AmbulanceType.bls,
+            title: l10n?.ambulanceBLS ?? 'Basic Life Support (BLS)',
+            description: l10n?.ambulanceBLSDesc ?? 'Oxygen support, stretcher, emergency first-aid equipment',
+            icon: Icons.airport_shuttle_rounded,
+            color: theme.colorScheme.primary,
+            theme: theme,
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
+          _buildTypeOption(
+            type: AmbulanceType.als,
+            title: l10n?.ambulanceALS ?? 'Advanced Cardiac Life Support (ALS)',
+            description: l10n?.ambulanceALSDesc ?? 'Cardiac monitor, defibrillator, ventilator, paramedic onboard',
+            icon: Icons.favorite_rounded,
+            color: const Color(0xFFDC2626),
+            badgeText: 'CRITICAL CARE',
+            theme: theme,
+          ),
 
-          // BLS Card
-          Card(
-            elevation: _selectedType == AmbulanceType.bls ? 2 : 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-              side: BorderSide(
-                color: _selectedType == AmbulanceType.bls
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.outlineVariant.withAlpha(80),
-                width: _selectedType == AmbulanceType.bls ? 2 : 1,
-              ),
-            ),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(14),
-              onTap: () => setState(() => _selectedType = AmbulanceType.bls),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Icon(
-                      _selectedType == AmbulanceType.bls
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_unchecked,
-                      color: _selectedType == AmbulanceType.bls
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.outline,
-                    ),
-                    const SizedBox(width: 14),
-                    CircleAvatar(
-                      backgroundColor: theme.colorScheme.primaryContainer,
-                      child: Icon(Icons.airport_shuttle_rounded, color: theme.colorScheme.primary),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            l10n?.ambulanceBLS ?? 'Basic Life Support (BLS)',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            l10n?.ambulanceBLSDesc ?? 'Oxygen support, stretcher, emergency first-aid equipment',
-                            style: theme.textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+          const SizedBox(height: 28),
+          Divider(color: theme.colorScheme.outlineVariant.withAlpha(60)),
+          const SizedBox(height: 20),
+
+          Row(
+            children: [
+              const Icon(Icons.location_on_rounded, color: Color(0xFF10B981), size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '2. Pickup & Hospital Destination',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
-          const SizedBox(height: 10),
-
-          // ALS Card (Cardiac / Stroke Intensive)
-          Card(
-            elevation: _selectedType == AmbulanceType.als ? 2 : 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-              side: BorderSide(
-                color: _selectedType == AmbulanceType.als
-                    ? theme.colorScheme.error
-                    : theme.colorScheme.outlineVariant.withAlpha(80),
-                width: _selectedType == AmbulanceType.als ? 2 : 1,
-              ),
-            ),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(14),
-              onTap: () => setState(() => _selectedType = AmbulanceType.als),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Icon(
-                      _selectedType == AmbulanceType.als
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_unchecked,
-                      color: _selectedType == AmbulanceType.als
-                          ? theme.colorScheme.error
-                          : theme.colorScheme.outline,
-                    ),
-                    const SizedBox(width: 14),
-                    CircleAvatar(
-                      backgroundColor: theme.colorScheme.errorContainer,
-                      child: Icon(Icons.favorite_rounded, color: theme.colorScheme.error),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            l10n?.ambulanceALS ?? 'Advanced Cardiac Life Support (ALS)',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            l10n?.ambulanceALSDesc ?? 'Cardiac monitor, defibrillator, ventilator, paramedic onboard',
-                            style: theme.textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
           // Pickup Location Field
           Text(
             l10n?.pickupLocation ?? 'Pickup Location',
-            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
           ),
           const SizedBox(height: 8),
           TextField(
             controller: _pickupController,
             decoration: InputDecoration(
-              hintText: 'Enter pickup address or area...',
+              hintText: 'Enter current pickup address, house/road number, or area...',
               prefixIcon: const Icon(Icons.my_location_rounded),
               suffixIcon: _isLoadingLocation
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: Center(
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
+                      child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
                     )
                   : IconButton(
+                      tooltip: 'Auto-detect GPS Location',
                       icon: const Icon(Icons.refresh_rounded),
                       onPressed: _fetchLiveAddress,
                     ),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
 
           // Destination Hospital Field
           Text(
             l10n?.destinationHospital ?? 'Destination Hospital (Optional)',
-            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
           ),
           const SizedBox(height: 8),
           TextField(
@@ -328,24 +389,271 @@ class _AmbulanceRequestScreenState extends State<AmbulanceRequestScreen> {
               hintText: 'e.g., NICVD, DMCH, United Hospital, or Nearest ER',
               prefixIcon: const Icon(Icons.local_hospital_outlined),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 10),
+
+          // Quick Destination chips
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              _destinationChip('Nearest Emergency Hospital'),
+              _destinationChip('NICVD (Cardiac)'),
+              _destinationChip('NINS (Neuro/Stroke)'),
+              _destinationChip('DMCH'),
+            ],
+          ),
+
+          const SizedBox(height: 28),
 
           // Request Button
-          FilledButton.icon(
-            style: FilledButton.styleFrom(
-              backgroundColor: _selectedType == AmbulanceType.als
-                  ? theme.colorScheme.error
-                  : theme.colorScheme.primary,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: _selectedType == AmbulanceType.als
+                    ? const Color(0xFFDC2626)
+                    : theme.colorScheme.primary,
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 4,
+              ),
+              onPressed: _handleRequest,
+              icon: const Icon(Icons.send_rounded, size: 20),
+              label: Text(
+                l10n?.requestAmbulanceNow ?? 'Request Ambulance Dispatch',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+              ),
             ),
-            onPressed: _handleRequest,
-            icon: const Icon(Icons.send_rounded),
-            label: Text(
-              l10n?.requestAmbulanceNow ?? 'Request Ambulance Dispatch',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+
+    // Sidebar: Emergency Direct Calling & Guidance
+    final sideInfo = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Toll-free Direct Hotlines Card
+        Container(
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: theme.colorScheme.outlineVariant.withAlpha(70)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.phone_in_talk_rounded, color: Color(0xFFDC2626), size: 20),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Direct Emergency Call',
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'If patient is unconscious or unresponsive, call 999 immediately without delay.',
+                style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFFDC2626),
+                  side: const BorderSide(color: Color(0xFFDC2626)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () => EmergencyNumbers.makeEmergencyCall(EmergencyNumbers.nationalEmergency),
+                icon: const Icon(Icons.phone_in_talk_rounded, size: 18),
+                label: Text(
+                  l10n?.governmentAmbulance999 ?? 'Call 999 National Ambulance',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: theme.colorScheme.primary,
+                  side: BorderSide(color: theme.colorScheme.primary),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () => _makeCall('+88029330188'),
+                icon: const Icon(Icons.medical_services_outlined, size: 18),
+                label: Text(
+                  l10n?.redCrescentAmbulance ?? 'Red Crescent Ambulance',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Clinical Standards Card
+        Container(
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest.withAlpha(90),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: theme.colorScheme.outlineVariant.withAlpha(50)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Dispatch Protocol & Guarantee',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+              ),
+              const SizedBox(height: 12),
+              _protocolItem(Icons.gps_fixed_rounded, 'Real-time GPS Driver Tracking with Live ETA updates'),
+              _protocolItem(Icons.healing_rounded, 'Onboard EMT & Paramedic triage before arrival'),
+              _protocolItem(Icons.local_hospital_rounded, 'Hospital emergency room advance notification'),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    return isDesktop
+        ? Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 7, child: formInputs),
+              const SizedBox(width: 24),
+              Expanded(flex: 5, child: sideInfo),
+            ],
+          )
+        : Column(
+            children: [
+              formInputs,
+              const SizedBox(height: 24),
+              sideInfo,
+            ],
+          );
+  }
+
+  Widget _buildTypeOption({
+    required AmbulanceType type,
+    required String title,
+    required String description,
+    required IconData icon,
+    required Color color,
+    String? badgeText,
+    required ThemeData theme,
+  }) {
+    final isSelected = _selectedType == type;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => setState(() => _selectedType = type),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: isSelected ? color.withAlpha(16) : theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isSelected ? color : theme.colorScheme.outlineVariant.withAlpha(70),
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                color: isSelected ? color : theme.colorScheme.outline,
+              ),
+              const SizedBox(width: 14),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: color.withAlpha(22),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 24),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+                          ),
+                        ),
+                        if (badgeText != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: color.withAlpha(25),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              badgeText,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                color: color,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      description,
+                      style: theme.textTheme.bodySmall?.copyWith(height: 1.35),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _destinationChip(String text) {
+    return ActionChip(
+      label: Text(text, style: const TextStyle(fontSize: 12)),
+      onPressed: () {
+        setState(() {
+          _destinationController.text = text;
+        });
+      },
+    );
+  }
+
+  Widget _protocolItem(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFF10B981)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 13, height: 1.4),
             ),
           ),
         ],
@@ -359,146 +667,197 @@ class _AmbulanceRequestScreenState extends State<AmbulanceRequestScreen> {
     AmbulanceProvider provider,
     ThemeData theme,
     AppLocalizations? l10n,
+    bool isDesktop,
   ) {
     final statusColor = _getStatusColor(booking.status, theme);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Urgency Banner
+    final leftStatusColumn = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Urgency Banner
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: statusColor.withAlpha(20),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: statusColor, width: 2),
+          ),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: statusColor.withAlpha(30),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.airport_shuttle_rounded, size: 48, color: statusColor),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                _getStatusLabel(booking.status, l10n).toUpperCase(),
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  color: statusColor,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                booking.status == AmbulanceStatus.arrived
+                    ? 'Ambulance is at your specified pickup location!'
+                    : 'Estimated Arrival: ~${booking.estimatedMinutes} minutes',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Timeline Progress Stepper
+        Container(
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: theme.colorScheme.outlineVariant.withAlpha(70)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Dispatch Timeline',
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 18),
+              _timelineStep('1', l10n?.statusRequested ?? 'Requested', true, theme),
+              _timelineStep(
+                '2',
+                l10n?.statusDispatched ?? 'Dispatched',
+                booking.status != AmbulanceStatus.requested,
+                theme,
+              ),
+              _timelineStep(
+                '3',
+                l10n?.statusEnRoute ?? 'On The Way',
+                booking.status == AmbulanceStatus.enRoute || booking.status == AmbulanceStatus.arrived,
+                theme,
+              ),
+              _timelineStep(
+                '4',
+                l10n?.statusArrived ?? 'Arrived On Scene',
+                booking.status == AmbulanceStatus.arrived,
+                theme,
+                isLast: true,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    final rightDetailsColumn = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Assigned Driver Card
+        if (booking.driverName != null) ...[
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: statusColor.withAlpha(25),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: statusColor, width: 2),
+              color: theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: theme.colorScheme.outlineVariant.withAlpha(70)),
             ),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.airport_shuttle_rounded, size: 48, color: statusColor),
-                const SizedBox(height: 8),
                 Text(
-                  _getStatusLabel(booking.status, l10n).toUpperCase(),
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    color: statusColor,
+                  l10n?.driverAssigned ?? 'Assigned Emergency Responder',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: theme.colorScheme.primary,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: 1.2,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  booking.status == AmbulanceStatus.arrived
-                      ? 'Ambulance is at your specified pickup location!'
-                      : 'Estimated Arrival: ~${booking.estimatedMinutes} minutes',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 22,
+                      backgroundColor: theme.colorScheme.primaryContainer,
+                      child: const Icon(Icons.person_rounded, size: 24),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            booking.driverName!,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                          if (booking.vehicleNumber != null)
+                            Text(
+                              'Vehicle: ${booking.vehicleNumber!}',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (booking.driverPhone != null)
+                      MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.green.shade700,
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: () => _makeCall(booking.driverPhone!),
+                          icon: const Icon(Icons.phone, size: 16),
+                          label: Text(l10n?.callDriver ?? 'Call Driver'),
+                        ),
+                      ),
+                  ],
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
+        ],
 
-          // Timeline Progress Stepper
-          Text(
-            'Dispatch Timeline',
-            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+        // Booking Details Card
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: theme.colorScheme.outlineVariant.withAlpha(70)),
           ),
-          const SizedBox(height: 12),
-          _timelineStep('1', l10n?.statusRequested ?? 'Requested', true, theme),
-          _timelineStep('2', l10n?.statusDispatched ?? 'Dispatched',
-              booking.status != AmbulanceStatus.requested, theme),
-          _timelineStep('3', l10n?.statusEnRoute ?? 'On The Way',
-              booking.status == AmbulanceStatus.enRoute || booking.status == AmbulanceStatus.arrived, theme),
-          _timelineStep('4', l10n?.statusArrived ?? 'Arrived On Scene',
-              booking.status == AmbulanceStatus.arrived, theme, isLast: true),
-
-          const SizedBox(height: 24),
-
-          // Assigned Driver Card
-          if (booking.driverName != null) ...[
-            Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n?.driverAssigned ?? 'Assigned Driver',
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          backgroundColor: theme.colorScheme.primaryContainer,
-                          child: const Icon(Icons.person_rounded),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                booking.driverName!,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                              ),
-                              if (booking.vehicleNumber != null)
-                                Text(
-                                  booking.vehicleNumber!,
-                                  style: theme.textTheme.bodySmall,
-                                ),
-                            ],
-                          ),
-                        ),
-                        if (booking.driverPhone != null)
-                          FilledButton.icon(
-                            style: FilledButton.styleFrom(
-                              backgroundColor: Colors.green.shade700,
-                              foregroundColor: Colors.white,
-                            ),
-                            onPressed: () => _makeCall(booking.driverPhone!),
-                            icon: const Icon(Icons.phone, size: 16),
-                            label: Text(l10n?.callDriver ?? 'Call'),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Dispatch Summary',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
               ),
-            ),
-            const SizedBox(height: 16),
-          ],
-
-          // Booking Details Card
-          Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _infoRow('Ambulance Type', booking.ambulanceType.label),
-                  _infoRow('Pickup Location', booking.pickupAddress),
-                  _infoRow('Destination', booking.destinationHospital),
-                ],
-              ),
-            ),
+              const SizedBox(height: 12),
+              _infoRow('Ambulance Type', booking.ambulanceType.label),
+              _infoRow('Pickup Location', booking.pickupAddress),
+              _infoRow('Destination', booking.destinationHospital),
+            ],
           ),
-          const SizedBox(height: 28),
+        ),
+        const SizedBox(height: 24),
 
-          // Cancel or Complete Action
-          if (booking.status == AmbulanceStatus.arrived) ...[
-            FilledButton.icon(
+        // Cancel or Complete Action
+        if (booking.status == AmbulanceStatus.arrived) ...[
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: FilledButton.icon(
               style: FilledButton.styleFrom(
                 backgroundColor: Colors.green.shade700,
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.symmetric(vertical: 18),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
               onPressed: () => provider.completeBooking(),
@@ -508,25 +867,54 @@ class _AmbulanceRequestScreenState extends State<AmbulanceRequestScreen> {
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
             ),
-          ] else ...[
-            OutlinedButton.icon(
+          ),
+        ] else ...[
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
                 foregroundColor: theme.colorScheme.error,
                 side: BorderSide(color: theme.colorScheme.error),
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
               onPressed: () => _confirmCancel(context, provider, l10n),
               icon: const Icon(Icons.cancel_outlined),
-              label: Text(l10n?.cancelBooking ?? 'Cancel Request'),
+              label: Text(
+                l10n?.cancelBooking ?? 'Cancel Request',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
-          ],
+          ),
         ],
-      ),
+      ],
     );
+
+    return isDesktop
+        ? Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 6, child: leftStatusColumn),
+              const SizedBox(width: 24),
+              Expanded(flex: 5, child: rightDetailsColumn),
+            ],
+          )
+        : Column(
+            children: [
+              leftStatusColumn,
+              const SizedBox(height: 24),
+              rightDetailsColumn,
+            ],
+          );
   }
 
-  Widget _timelineStep(String stepNumber, String title, bool isDone, ThemeData theme, {bool isLast = false}) {
+  Widget _timelineStep(
+    String stepNumber,
+    String title,
+    bool isDone,
+    ThemeData theme, {
+    bool isLast = false,
+  }) {
     final activeColor = isDone ? theme.colorScheme.primary : theme.colorScheme.outlineVariant;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -543,7 +931,7 @@ class _AmbulanceRequestScreenState extends State<AmbulanceRequestScreen> {
             if (!isLast)
               Container(
                 width: 2,
-                height: 28,
+                height: 32,
                 color: activeColor,
               ),
           ],
@@ -568,15 +956,15 @@ class _AmbulanceRequestScreenState extends State<AmbulanceRequestScreen> {
 
   Widget _infoRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 120,
+            width: 130,
             child: Text(
               '$label:',
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
             ),
           ),
           Expanded(

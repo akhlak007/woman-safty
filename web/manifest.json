@@ -1,12 +1,12 @@
 {
-    "name": "safelife",
-    "short_name": "safelife",
+    "name": "SafeLife Emergency Support",
+    "short_name": "SafeLife",
     "start_url": ".",
-    "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "display": "browser",
+    "background_color": "#F8F8F7",
+    "theme_color": "#C51620",
+    "description": "Responsive women’s safety, emergency SOS, ambulance, and medical triage support.",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {

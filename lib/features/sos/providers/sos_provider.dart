@@ -1,5 +1,7 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+
 import '../../../core/constants/alert_constants.dart';
 import '../../../core/services/location_service.dart';
 import '../../../core/services/sms_fallback_service.dart';
@@ -16,9 +18,9 @@ class SosProvider extends ChangeNotifier {
     EmergencyRepository? emergencyRepository,
     LocationService? locationService,
     SmsFallbackService? smsFallbackService,
-  })  : _emergencyRepository = emergencyRepository ?? EmergencyRepository(),
-        _locationService = locationService ?? const LocationService(),
-        _smsFallbackService = smsFallbackService ?? const SmsFallbackService();
+  }) : _emergencyRepository = emergencyRepository ?? EmergencyRepository(),
+       _locationService = locationService ?? const LocationService(),
+       _smsFallbackService = smsFallbackService ?? const SmsFallbackService();
 
   // Countdown state
   int _countdown = 5;
@@ -28,6 +30,7 @@ class SosProvider extends ChangeNotifier {
   // Active emergency state
   bool _isDispatching = false;
   EmergencyCase? _activeEmergency;
+  int _sessionGeneration = 0;
   EmergencyLocation? _currentLocation;
   String? _errorMessage;
   StreamSubscription<EmergencyLocation>? _locationSubscription;
@@ -38,8 +41,11 @@ class SosProvider extends ChangeNotifier {
   bool get isCountingDown => _isCountingDown;
   bool get isDispatching => _isDispatching;
   EmergencyCase? get activeEmergency => _activeEmergency;
-  bool get hasActiveEmergency => _activeEmergency != null && _activeEmergency!.status == EmergencyStatus.active;
-  EmergencyLocation? get currentLocation => _currentLocation ?? _activeEmergency?.lastKnownLocation;
+  bool get hasActiveEmergency =>
+      _activeEmergency != null &&
+      _activeEmergency!.status == EmergencyStatus.active;
+  EmergencyLocation? get currentLocation =>
+      _currentLocation ?? _activeEmergency?.lastKnownLocation;
   String? get errorMessage => _errorMessage;
 
   /// Starts the 5-second SOS countdown before dispatch
@@ -106,22 +112,30 @@ class SosProvider extends ChangeNotifier {
     AlertLevel alertLevel = AlertLevel.emergencyContactAlert,
     String triggerSource = 'sos_button',
   }) async {
+    final dispatchGeneration = _sessionGeneration;
     _isDispatching = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
+      // Continuous tracking and emergency alerts are consent-based.
+      final verifiedContacts = contacts
+          .where((contact) => contact.verified)
+          .toList();
+
       // 1. Acquire current coordinates
       EmergencyLocation? location;
       try {
         location = await _locationService.getCurrentLocation();
+        if (dispatchGeneration != _sessionGeneration) return null;
         _currentLocation = location;
       } catch (_) {
         // Continue dispatching even if GPS is slow/temporarily unavailable
       }
+      if (dispatchGeneration != _sessionGeneration) return null;
 
       // 2. Prepare contact alert records
-      final alertRecords = contacts.map((contact) {
+      final alertRecords = verifiedContacts.map((contact) {
         return ContactAlertRecord(
           contactId: contact.id,
           contactName: contact.name,
@@ -151,15 +165,20 @@ class SosProvider extends ChangeNotifier {
 
       // 4. Save to repository (Firestore + local offline cache)
       final savedCase = await _emergencyRepository.createEmergencyCase(newCase);
+      if (dispatchGeneration != _sessionGeneration) {
+        return savedCase;
+      }
       _activeEmergency = savedCase;
 
       // 5. Trigger direct SMS fallback if contacts are configured
-      if (contacts.isNotEmpty) {
-        unawaited(_smsFallbackService.sendDirectSms(
-          emergency: savedCase,
-          contacts: contacts,
-          language: language,
-        ));
+      if (verifiedContacts.isNotEmpty) {
+        unawaited(
+          _smsFallbackService.sendDirectSms(
+            emergency: savedCase,
+            contacts: verifiedContacts,
+            language: language,
+          ),
+        );
       }
 
       // 6. Start continuous live location tracking
@@ -167,11 +186,15 @@ class SosProvider extends ChangeNotifier {
 
       return savedCase;
     } catch (e) {
-      _errorMessage = e.toString();
+      if (dispatchGeneration == _sessionGeneration) {
+        _errorMessage = e.toString();
+      }
       return null;
     } finally {
-      _isDispatching = false;
-      notifyListeners();
+      if (dispatchGeneration == _sessionGeneration) {
+        _isDispatching = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -180,26 +203,30 @@ class SosProvider extends ChangeNotifier {
     _locationSubscription?.cancel();
 
     try {
-      _locationSubscription = _locationService.getPositionStream(intervalSeconds: 5).listen(
-        (newLoc) {
-          _currentLocation = newLoc;
-          if (_activeEmergency != null) {
-            _activeEmergency = _activeEmergency!.copyWith(lastKnownLocation: newLoc);
-          }
-          notifyListeners();
+      _locationSubscription = _locationService
+          .getPositionStream(intervalSeconds: 5)
+          .listen(
+            (newLoc) {
+              _currentLocation = newLoc;
+              if (_activeEmergency != null) {
+                _activeEmergency = _activeEmergency!.copyWith(
+                  lastKnownLocation: newLoc,
+                );
+              }
+              notifyListeners();
 
-          // Throttle remote Firestore updates to every 10 seconds
-          final now = DateTime.now();
-          if (_lastLocationUpdateTime == null ||
-              now.difference(_lastLocationUpdateTime!).inSeconds >= 10) {
-            _lastLocationUpdateTime = now;
-            _emergencyRepository.updateLiveLocation(emergencyId, newLoc);
-          }
-        },
-        onError: (_) {
-          // GPS stream error - maintain last known location
-        },
-      );
+              // Throttle remote Firestore updates to every 10 seconds
+              final now = DateTime.now();
+              if (_lastLocationUpdateTime == null ||
+                  now.difference(_lastLocationUpdateTime!).inSeconds >= 10) {
+                _lastLocationUpdateTime = now;
+                _emergencyRepository.updateLiveLocation(emergencyId, newLoc);
+              }
+            },
+            onError: (_) {
+              // GPS stream error - maintain last known location
+            },
+          );
     } catch (_) {}
   }
 
@@ -231,8 +258,10 @@ class SosProvider extends ChangeNotifier {
 
   /// Restores active emergency state from cache or backend if available
   Future<void> restoreActiveEmergency(String userId) async {
+    final generation = _sessionGeneration;
     try {
       final cachedCase = await _emergencyRepository.getCachedActiveEmergency();
+      if (generation != _sessionGeneration) return;
       if (cachedCase != null &&
           cachedCase.userId == userId &&
           cachedCase.status == EmergencyStatus.active) {
@@ -242,6 +271,24 @@ class SosProvider extends ChangeNotifier {
         notifyListeners();
       }
     } catch (_) {}
+  }
+
+  /// Removes user-specific emergency state from this device session without
+  /// changing the backend emergency status.
+  void clearSession() {
+    _sessionGeneration++;
+    _countdownTimer?.cancel();
+    _countdownTimer = null;
+    _locationSubscription?.cancel();
+    _locationSubscription = null;
+    _countdown = AlertConstants.defaultCountdownSeconds;
+    _isCountingDown = false;
+    _isDispatching = false;
+    _activeEmergency = null;
+    _currentLocation = null;
+    _lastLocationUpdateTime = null;
+    _errorMessage = null;
+    notifyListeners();
   }
 
   @override
