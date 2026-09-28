@@ -2,6 +2,11 @@
 
 SafeLife is a responsive Flutter emergency-support application focused on women’s safety and urgent medical response in Bangladesh. It brings personal safety tools, emergency contacts, ambulance requests, nearby hospitals, and cardiac/stroke triage into one bilingual experience.
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-womansafety--215e2.web.app-success?style=for-the-badge&logo=firebase)](https://womansafety-215e2.web.app)
+
+🌐 **Live Application:** [https://womansafety-215e2.web.app](https://womansafety-215e2.web.app)  
+🚀 **Alternative Mirror:** [https://womansafety-215e2.firebaseapp.com](https://womansafety-215e2.firebaseapp.com)
+
 The application is designed to reduce the number of decisions a person must make during a stressful situation. Its dashboard provides direct access to SOS support and Bangladesh’s national helplines while keeping preparation tools—such as a medical profile and trusted contacts—close at hand.
 
 > SafeLife supports emergency assistance and symptom triage. It is not a medical diagnostic device and does not replace professional emergency services. Call **999** immediately in a life-threatening situation.
@@ -149,6 +154,24 @@ flutter test
 ```
 
 The tests cover authentication models, SOS behavior, cardiac and stroke triage, safety timers, ambulance requests, hospitals, incident reports, responder workflows, analytics, settings, themes, and responsive dashboard layouts.
+
+## Deployment
+
+The web application is deployed on Firebase Hosting with integrated Cloud Firestore security rules:
+
+- **Live URL:** [https://womansafety-215e2.web.app](https://womansafety-215e2.web.app)
+- **Alternative Mirror:** [https://womansafety-215e2.firebaseapp.com](https://womansafety-215e2.firebaseapp.com)
+- **Firebase Project Console:** [https://console.firebase.google.com/project/womansafety-215e2/overview](https://console.firebase.google.com/project/womansafety-215e2/overview)
+
+### Deploy updates
+
+```bash
+# 1. Build optimized web release bundle
+flutter build web --release
+
+# 2. Deploy Firestore security rules and web hosting
+firebase deploy --only firestore:rules,hosting
+```
 
 ## Firebase functions
 
