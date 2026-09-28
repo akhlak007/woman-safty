@@ -26,17 +26,20 @@ class ProfileRepository {
       }
       return UserProfile.fromMap(doc.data()!, uid);
     } catch (e) {
-      throw AuthException('Failed to retrieve user profile.', e.toString());
+      return null;
     }
   }
 
   Stream<UserProfile?> streamUserProfile(String uid) {
     try {
-      return _usersRef.doc(uid).snapshots().map((doc) {
+      return _usersRef.doc(uid).snapshots().map<UserProfile?>((doc) {
         if (!doc.exists || doc.data() == null) {
           return null;
         }
         return UserProfile.fromMap(doc.data()!, uid);
+      }).handleError((error) {
+        // Suppress permission-denied or network errors on the stream
+        return null;
       });
     } catch (_) {
       return const Stream.empty();

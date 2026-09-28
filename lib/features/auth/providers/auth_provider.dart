@@ -43,6 +43,16 @@ class SafeLifeAuthProvider extends ChangeNotifier {
       _isAdmin = false;
       _isResponder = false;
       if (firebaseUser != null) {
+        if (_userProfile == null || _userProfile!.uid != firebaseUser.uid) {
+          _userProfile = UserProfile(
+            uid: firebaseUser.uid,
+            name: firebaseUser.displayName ?? '',
+            email: firebaseUser.email ?? '',
+            phone: firebaseUser.phoneNumber ?? '',
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          );
+        }
         _subscribeToProfile(firebaseUser.uid);
         _loadAuthorizationClaims(firebaseUser);
       } else {
@@ -73,12 +83,17 @@ class SafeLifeAuthProvider extends ChangeNotifier {
 
   void _subscribeToProfile(String uid) {
     _profileSubscription?.cancel();
-    _profileSubscription = _profileRepository.streamUserProfile(uid).listen((
-      profile,
-    ) {
-      _userProfile = profile;
-      notifyListeners();
-    });
+    _profileSubscription = _profileRepository.streamUserProfile(uid).listen(
+      (profile) {
+        if (profile != null) {
+          _userProfile = profile;
+          notifyListeners();
+        }
+      },
+      onError: (e) {
+        // Silently suppress permission or network errors on profile stream
+      },
+    );
   }
 
   void clearError() {
@@ -128,8 +143,13 @@ class SafeLifeAuthProvider extends ChangeNotifier {
         password: password,
       );
 
-      final uid = credential.user?.uid;
-      if (uid != null) {
+      final user = credential.user;
+      final uid = user?.uid;
+      if (user != null && uid != null) {
+        try {
+          await user.updateDisplayName(name.trim());
+        } catch (_) {}
+
         final profile = UserProfile(
           uid: uid,
           name: name.trim(),
@@ -138,7 +158,15 @@ class SafeLifeAuthProvider extends ChangeNotifier {
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         );
-        await _profileRepository.saveUserProfile(profile);
+
+        _user = user;
+        _userProfile = profile;
+
+        try {
+          await _profileRepository.saveUserProfile(profile);
+        } catch (e) {
+          debugPrint('Notice: Profile could not be synced to Firestore: $e');
+        }
       }
 
       _isLoading = false;

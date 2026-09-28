@@ -14,6 +14,8 @@ class Hospital {
   final bool hasStrokeThrombolysis; // Acute stroke center / tPA administration
   final bool hasICU;
   final String type; // 'government' or 'private'
+  final String area;
+  final String district;
 
   const Hospital({
     required this.id,
@@ -28,6 +30,8 @@ class Hospital {
     this.hasStrokeThrombolysis = false,
     this.hasICU = true,
     this.type = 'government',
+    this.area = 'Dhaka',
+    this.district = 'Dhaka',
   });
 
   /// Calculates geodesic distance in kilometers using the Haversine formula
@@ -45,6 +49,13 @@ class Hospital {
     final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
 
     return earthRadiusKm * c;
+  }
+
+  /// Calculates estimated driving time in minutes for emergency response (avg ~25 km/h)
+  int estimatedDrivingMinutes(double distanceKm) {
+    if (distanceKm <= 0.2) return 2;
+    final mins = (distanceKm * 2.4 + 2).round();
+    return mins.clamp(2, 180);
   }
 
   static double _degreesToRadians(double degrees) {
@@ -65,6 +76,8 @@ class Hospital {
       'hasStrokeThrombolysis': hasStrokeThrombolysis,
       'hasICU': hasICU,
       'type': type,
+      'area': area,
+      'district': district,
     };
   }
 
@@ -82,6 +95,8 @@ class Hospital {
       hasStrokeThrombolysis: map['hasStrokeThrombolysis'] as bool? ?? false,
       hasICU: map['hasICU'] as bool? ?? true,
       type: map['type'] as String? ?? 'government',
+      area: map['area'] as String? ?? 'Dhaka',
+      district: map['district'] as String? ?? 'Dhaka',
     );
   }
 }

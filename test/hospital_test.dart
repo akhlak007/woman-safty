@@ -151,6 +151,48 @@ void main() {
       expect(map['id'], 'test_hosp');
       expect(map['hasCathLab'], true);
       expect(map['type'], 'government');
+      expect(map['area'], 'Dhaka');
+    });
+
+    test('Filters hospitals by area and district', () {
+      final mirpurHospitals = repo.getHospitals(
+        areaFilter: 'Mirpur',
+      );
+      expect(mirpurHospitals.isNotEmpty, isTrue);
+      expect(mirpurHospitals.any((h) => h.id == 'hosp_nhf'), isTrue);
+
+      final ctgHospitals = repo.getHospitals(
+        areaFilter: 'Chattogram',
+      );
+      expect(ctgHospitals.isNotEmpty, isTrue);
+      expect(ctgHospitals.any((h) => h.id == 'hosp_cmch'), isTrue);
+    });
+
+    test('Filters hospitals by max distance radius', () {
+      // From Sher-e-Bangla Nagar, hospitals within 2 km should include NICVD / NINS
+      final closeHospitals = repo.getHospitals(
+        userLat: 23.7712,
+        userLng: 90.3698,
+        maxDistanceKm: 2.0,
+      );
+      expect(closeHospitals.isNotEmpty, isTrue);
+      for (final h in closeHospitals) {
+        expect(h.distanceTo(23.7712, 90.3698), lessThanOrEqualTo(2.0));
+      }
+    });
+
+    test('Estimated driving time calculation works accurately', () {
+      const hosp = Hospital(
+        id: 'hosp_demo',
+        name: 'Demo Hospital',
+        banglaName: 'ডেমো',
+        address: 'Demo',
+        phone: '123',
+        latitude: 23.7,
+        longitude: 90.3,
+      );
+      expect(hosp.estimatedDrivingMinutes(1.0), inInclusiveRange(2, 6));
+      expect(hosp.estimatedDrivingMinutes(10.0), inInclusiveRange(20, 30));
     });
   });
 
@@ -180,6 +222,9 @@ void main() {
       expect(find.text('Emergency Hospitals'), findsOneWidget);
       expect(find.byType(TextField), findsOneWidget);
 
+      // Location reference bar & GPS button
+      expect(find.textContaining('Live GPS'), findsWidgets);
+
       // Filter chips: Cath Lab, Stroke Care, ICU, 24/7 Emergency
       expect(find.text('Cardiac (Cath Lab)'), findsOneWidget);
       expect(find.text('Stroke Care'), findsOneWidget);
@@ -204,6 +249,15 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
 
       expect(find.textContaining('Square Hospital'), findsOneWidget);
+
+      // Tap on Radar Map View button
+      final radarMapButton = find.byIcon(Icons.radar_rounded);
+      expect(radarMapButton, findsOneWidget);
+      await tester.tap(radarMapButton);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.textContaining('Proximity Radar'), findsOneWidget);
     });
   });
 }

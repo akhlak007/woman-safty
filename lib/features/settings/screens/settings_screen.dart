@@ -347,6 +347,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
 
+          const Divider(height: 1),
+
+          // Theme Setting Tile
+          ListTile(
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.secondary.withAlpha(20),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                color: theme.colorScheme.secondary,
+                size: 20,
+              ),
+            ),
+            title: const Text(
+              'Dark Appearance',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+            ),
+            subtitle: Text(
+              isDark ? 'Dark theme enabled' : 'Light theme enabled',
+              style: TextStyle(
+                fontSize: 12,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            trailing: Switch(
+              value: isDark,
+              onChanged: (_) => widget.onToggleTheme(),
+            ),
+          ),
         ],
       ),
     );

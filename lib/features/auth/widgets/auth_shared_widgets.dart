@@ -177,12 +177,14 @@ class AuthLeftPanel extends StatelessWidget {
                         size: 18,
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        'Bangladesh Emergency Response Network',
-                        style: TextStyle(
-                          color: Colors.white.withAlpha(210),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
+                      Flexible(
+                        child: Text(
+                          'Bangladesh Emergency Response Network',
+                          style: TextStyle(
+                            color: Colors.white.withAlpha(210),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                     ],

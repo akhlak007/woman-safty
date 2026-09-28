@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../app/routes.dart';
 import '../../../core/constants/emergency_numbers.dart';
 import '../../../l10n/app_localizations.dart';
 import '../providers/auth_provider.dart';
@@ -59,11 +60,15 @@ class _LoginScreenState extends State<LoginScreen>
       password: _passwordController.text,
     );
 
-    if (success &&
-        mounted &&
-        widget.popOnSuccess &&
-        Navigator.canPop(context)) {
-      Navigator.of(context).pop();
+    if (success && mounted) {
+      if (widget.popOnSuccess && Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      } else {
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          AppRoutes.dashboard,
+          (route) => false,
+        );
+      }
       return;
     }
 

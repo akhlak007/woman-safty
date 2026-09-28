@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../app/routes.dart';
 import '../../../l10n/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/auth_shared_widgets.dart';
@@ -73,7 +74,16 @@ class _RegisterScreenState extends State<RegisterScreen>
     );
 
     if (success && mounted) {
-      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Account created successfully!'),
+          backgroundColor: Color(0xFF10B981),
+        ),
+      );
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        AppRoutes.dashboard,
+        (route) => false,
+      );
     } else if (!success && mounted && authProvider.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -351,11 +361,11 @@ class _RegisterForm extends StatelessWidget {
           const SizedBox(height: 24),
 
           // Disclaimer
-          Container(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.secondaryContainer.withAlpha(50),
+          Material(
+            color: theme.colorScheme.secondaryContainer.withAlpha(50),
+            shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(
+              side: BorderSide(
                 color: theme.colorScheme.outline.withAlpha(60),
               ),
             ),
@@ -395,8 +405,9 @@ class _RegisterForm extends StatelessWidget {
           const SizedBox(height: 16),
 
           // Login link
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          Wrap(
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text(
                 'Already have an account? ',
