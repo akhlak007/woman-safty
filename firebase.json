@@ -1,1 +1,45 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"womansafety-215e2","appId":"1:333209496476:android:6d2fca5c4eacfe05e87659","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"womansafety-215e2","configurations":{"android":"1:333209496476:android:6d2fca5c4eacfe05e87659","ios":"1:333209496476:ios:d1ab5ed3cd946ba0e87659","macos":"1:333209496476:ios:d1ab5ed3cd946ba0e87659","web":"1:333209496476:web:e380fa2f269a4004e87659","windows":"1:333209496476:web:7f8772e70a782c34e87659"}}}}}}
+{
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
+  "firestore": {
+    "rules": "firebase/firestore.rules"
+  },
+  "storage": {
+    "rules": "firebase/storage.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "womansafety-215e2",
+          "appId": "1:333209496476:android:6d2fca5c4eacfe05e87659",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "womansafety-215e2",
+          "configurations": {
+            "android": "1:333209496476:android:6d2fca5c4eacfe05e87659",
+            "ios": "1:333209496476:ios:d1ab5ed3cd946ba0e87659",
+            "macos": "1:333209496476:ios:d1ab5ed3cd946ba0e87659",
+            "web": "1:333209496476:web:e380fa2f269a4004e87659",
+            "windows": "1:333209496476:web:7f8772e70a782c34e87659"
+          }
+        }
+      }
+    }
+  }
+}

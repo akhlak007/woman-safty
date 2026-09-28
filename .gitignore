@@ -53,3 +53,4 @@ functions/node_modules/
 
 # Agent IDE scratch & logs
 .agents/
+.firebase/
